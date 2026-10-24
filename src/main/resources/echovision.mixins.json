@@ -7,8 +7,13 @@
 		"EntityRendererMixin",
 		"EntityRenderStateMixin",
 		"FogRendererMixin",
-		"LivingEntityRendererMixin",
-		"WorldRendererMixin"
+		"WorldRendererMixin",
+		"BatchingRenderCommandQueueMixin",
+		"EntityRenderManagerMixin",
+		"BlockEntityRenderManagerMixin",
+		"HeldItemRendererMixin",
+		"RenderLayerAccessor",
+		"RenderSetupAccessor"
 	],
 	"injectors": {
 		"defaultRequire": 1

@@ -2,8 +2,14 @@
 
 #moj_import <minecraft:dynamictransforms.glsl>
 
-// Эхо-зрение для существ: та же картинка, что у блоков — оттенки серого и линии деталей текстуры.
-// vertexColor.rgb — цвет эха, vertexColor.a — яркость эха / 2 (до 2 со вспышкой фронта).
+// Эхо-зрение для всего, что рисуется моделью с текстурой: мобы, броня, предметы, сундуки, рамки, рука игрока.
+// Та же картинка, что у блоков — оттенки серого и линии деталей текстуры.
+// ECHO_LEVEL — яркость эха (до 2 со вспышкой фронта), задаётся пайплайном: их 16 ступеней.
+// vertexColor — окраска текстуры (крашеная кожа, трава и т. п.), влияет только на оттенок серого.
+
+#ifndef ECHO_LEVEL
+#define ECHO_LEVEL 1.0
+#endif
 
 uniform sampler2D Sampler0;
 
@@ -44,10 +50,10 @@ void main() {
     float texelsPerPixel = max(fwidth(tc.x), fwidth(tc.y));
     edge *= clamp(1.6 - texelsPerPixel * 1.4, 0.0, 1.0);
 
-    float level = vertexColor.a * 2.0;
+    float level = ECHO_LEVEL;
     float lit = min(level, 1.0);
-    float gray = luma(tex) * 0.75 + 0.1;
-    vec3 col = vertexColor.rgb * (gray * shade * lit * 0.9 + edge * lit * 0.45);
+    float gray = luma(tex * vec4(vertexColor.rgb, 1.0)) * 0.75 + 0.1;
+    vec3 col = vec3(gray * shade * lit * 0.9 + edge * lit * 0.45);
     float flash = max(level - 1.0, 0.0);
     col += vec3(flash * (0.25 + 0.5 * edge));
 

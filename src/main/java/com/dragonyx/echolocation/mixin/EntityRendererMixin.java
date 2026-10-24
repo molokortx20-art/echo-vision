@@ -9,15 +9,14 @@ import com.llamalad7.mixinextras.sugar.Local;
 import net.minecraft.client.render.entity.EntityRenderer;
 import net.minecraft.client.render.entity.state.EntityRenderState;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Эхо существ. В эхо-зрении живые мобы рисуются своей текстурой (см. LivingEntityRendererMixin),
- * а здесь им передаётся яркость эха. Остальные существа и другие стили — светящаяся обводка.
+ * Эхо существ: здесь в состояние отрисовки передаётся яркость эха. В эхо-зрении по ней сущность
+ * рисуется своей текстурой (EchoEntityLayers), в остальных стилях — светящейся обводкой.
  */
 @Mixin(EntityRenderer.class)
 public abstract class EntityRendererMixin {
@@ -48,9 +47,9 @@ public abstract class EntityRendererMixin {
 		return r << 16 | g << 8 | b;
 	}
 
-	/** Обводка — для всех, кроме живых мобов в эхо-зрении (их видно самих). */
+	/** Обводка — только в стилях без эхо-зрения: в нём все сущности рисуются сами (EchoEntityLayers). */
 	private static boolean echolocation$outlined(Entity entity) {
-		return !(entity instanceof LivingEntity && EchoEntityLayers.visionStyle());
+		return !EchoEntityLayers.visionStyle();
 	}
 
 	private static float echolocation$level(Entity entity) {

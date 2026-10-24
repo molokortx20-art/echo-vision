@@ -148,7 +148,8 @@ public final class EchoEngine {
 		while ((f = finished.poll()) != null) {
 			if (world == null || f.world() != world) continue;
 			SoundJob job = f.job();
-			List<Entity> nearby = world.getOtherEntities(client.player,
+			// Сам игрок тоже: его рука и тело видны в эхе собственных звуков.
+			List<Entity> nearby = world.getOtherEntities(null,
 				Box.of(new Vec3d(job.x, job.y, job.z), job.range * 2, job.range * 2, job.range * 2));
 			if (DEBUG) EchoMod.LOGGER.info("Wave at {} {} {}: range {}, surfaces {}, complete {}",
 				job.originX, job.originY, job.originZ, job.range, job.result.size, job.result.complete);

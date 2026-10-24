@@ -281,6 +281,19 @@ public final class EchoField {
 		}
 	}
 
+	/** Яркость эха блока (по самой яркой из его граней) — для блок-сущностей вроде сундуков. */
+	public float blockLevel(long pos) {
+		BlockEcho be = blocks.get(pos);
+		if (be == null) return 0f;
+		EchoConfig cfg = EchoConfig.get();
+		double now = EchoClock.now();
+		float best = 0f;
+		for (Echo e : be.slots) {
+			if (e != null) best = Math.max(best, e.level(now, cfg.echoDuration, cfg.wavefrontFlash));
+		}
+		return best * cfg.brightness;
+	}
+
 	/** Яркость обводки существа сейчас (0, если его не слышно). */
 	public float entityLevel(int id) {
 		Echo e = entities.get(id);

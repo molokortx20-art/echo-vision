@@ -50,6 +50,16 @@ public final class EchoClientGameTest implements FabricClientGameTest {
 				"execute as @p at @s run fill ~-3 ~-7 ~-2 ~-3 ~-3 ~-2 minecraft:oak_log",
 				"execute as @p at @s run summon minecraft:zombie ~-3 ~ ~-1 {NoAI:1b,Silent:1b}",
 				"execute as @p at @s run summon minecraft:cow ~3 ~ ~-7 {NoAI:1b,Silent:1b}",
+				// То, что рисуется не моделью блока: блок-сущности, неживые сущности, броня и предметы.
+				"execute as @p at @s run setblock ~2 ~ ~-2 minecraft:chest[facing=south]",
+				"execute as @p at @s run summon minecraft:oak_boat ~0.5 ~ ~-0.5",
+				"execute as @p at @s run summon minecraft:item ~1.5 ~0.2 ~0.5 {Item:{id:\"minecraft:diamond\",count:1},NoGravity:1b,PickupDelay:32767}",
+				"execute as @p at @s run summon minecraft:armor_stand ~-1.5 ~ ~-1.5 {Rotation:[200f,0f]}",
+				"item replace entity @e[type=minecraft:armor_stand] armor.head with minecraft:iron_helmet",
+				"item replace entity @e[type=minecraft:armor_stand] armor.chest with minecraft:diamond_chestplate",
+				"item replace entity @e[type=minecraft:zombie] weapon.mainhand with minecraft:iron_sword",
+				"item replace entity @e[type=minecraft:zombie] armor.head with minecraft:golden_helmet",
+				"item replace entity @a weapon.mainhand with minecraft:diamond_pickaxe",
 				"execute as @p at @s run tp @s ~ ~ ~3 180 15"
 			};
 			for (String cmd : scene) sp.getServer().runCommand(cmd);
