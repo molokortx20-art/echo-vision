@@ -9,6 +9,7 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectIterator;
 import net.minecraft.client.render.model.BakedQuad;
+import net.minecraft.client.texture.Sprite;
 import net.minecraft.entity.Entity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
@@ -164,6 +165,8 @@ public final class EchoField {
 		public VoxelShape shape;
 		/** Квадраты модели блока для эхо-зрения: [0–5] по сторонам, [6] — без стороны. Сбрасывается новой волной. */
 		public List<BakedQuad>[] quads;
+		/** Текстура для формы блок-сущности, которую Better Block Entities вшил в мир (иначе null). */
+		public Sprite particle;
 
 		BlockEcho(long pos) {
 			this.pos = pos;

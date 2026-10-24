@@ -17,6 +17,8 @@ import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.model.BakedQuad;
 import net.minecraft.client.render.model.BlockModelPart;
 import net.minecraft.client.render.model.BlockStateModel;
+import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.texture.Sprite;
 import net.minecraft.client.texture.SpriteAtlasTexture;
 import net.minecraft.client.util.math.Vector2f;
 import net.minecraft.client.world.ClientWorld;
@@ -78,6 +80,8 @@ public final class EchoRenderer {
 	/** Затенение граней как в ванилле: низ, верх, север, юг, запад, восток. */
 	private static final float[] SHADE = {0.5f, 1.0f, 0.8f, 0.8f, 0.6f, 0.6f};
 	private static final Random MODEL_RANDOM = Random.create();
+	/** Better Block Entities рисует сундуки и прочие блок-сущности как часть мира, а не отдельным рендером. */
+	private static final boolean BAKED_BLOCK_ENTITIES = FabricLoader.getInstance().isModLoaded("betterblockentities");
 
 	private static BufferAllocator surfaceAllocator;
 	private static VertexConsumerProvider.Immediate surfaceImmediate;
@@ -217,16 +221,62 @@ public final class EchoRenderer {
 		List<BakedQuad>[] out = new List[7];
 		for (int i = 0; i < 7; i++) out[i] = new ArrayList<>();
 		BlockState state = world.getBlockState(BlockPos.fromLong(be.pos));
-		if (state.getRenderType() == BlockRenderType.MODEL) {
+		be.particle = null;
+		if (state.getRenderType() != BlockRenderType.INVISIBLE) {
 			BlockStateModel model = MinecraftClient.getInstance().getBlockRenderManager().getModel(state);
 			MODEL_RANDOM.setSeed(state.getRenderingSeed(BlockPos.fromLong(be.pos)));
+			boolean any = false;
 			for (BlockModelPart part : model.getParts(MODEL_RANDOM)) {
-				for (Direction d : Direction.values()) out[d.ordinal()].addAll(part.getQuads(d));
-				out[6].addAll(part.getQuads(null));
+				for (Direction d : Direction.values()) any |= out[d.ordinal()].addAll(part.getQuads(d));
+				any |= out[6].addAll(part.getQuads(null));
 			}
+			// Блок-сущность без модели блока (сундук, табличка): обычно её рисует свой рендер, и эхо
+			// ловит его в EchoEntityLayers. Но Better Block Entities вшивает их в сам мир — тогда
+			// рисуем форму блока его же текстурой (частицы), иначе сундук остался бы чёрным кубом.
+			if (!any && state.hasBlockEntity() && BAKED_BLOCK_ENTITIES) be.particle = model.particleSprite();
 		}
 		be.quads = out;
 		return out;
+	}
+
+	/** Форма блок-сущности текстурой частиц — для Better Block Entities (см. quadsOf). */
+	private static void surfaceShape(EchoField.BlockEcho be, EchoField.Echo e, float x, float y, float z, int color) {
+		Sprite s = be.particle;
+		for (Box b : be.shape.getBoundingBoxes()) {
+			float x0 = x + (float) b.minX, x1 = x + (float) b.maxX;
+			float y0 = y + (float) b.minY, y1 = y + (float) b.maxY;
+			float z0 = z + (float) b.minZ, z1 = z + (float) b.maxZ;
+			// Текстура ложится по координатам внутри блока, как у обычных граней.
+			shapeQuad(s, e, color, 0.5f, x0, y0, z0, x1, y0, z0, x1, y0, z1, x0, y0, z1, (float) b.minX, (float) b.maxX, (float) b.minZ, (float) b.maxZ);
+			shapeQuad(s, e, color, 1.0f, x0, y1, z0, x1, y1, z0, x1, y1, z1, x0, y1, z1, (float) b.minX, (float) b.maxX, (float) b.minZ, (float) b.maxZ);
+			shapeQuad(s, e, color, 0.8f, x0, y0, z0, x1, y0, z0, x1, y1, z0, x0, y1, z0, (float) b.minX, (float) b.maxX, (float) b.minY, (float) b.maxY);
+			shapeQuad(s, e, color, 0.8f, x0, y0, z1, x1, y0, z1, x1, y1, z1, x0, y1, z1, (float) b.minX, (float) b.maxX, (float) b.minY, (float) b.maxY);
+			shapeQuad(s, e, color, 0.6f, x0, y0, z0, x0, y0, z1, x0, y1, z1, x0, y1, z0, (float) b.minZ, (float) b.maxZ, (float) b.minY, (float) b.maxY);
+			shapeQuad(s, e, color, 0.6f, x1, y0, z0, x1, y0, z1, x1, y1, z1, x1, y1, z0, (float) b.minZ, (float) b.maxZ, (float) b.minY, (float) b.maxY);
+		}
+	}
+
+	private static void shapeQuad(Sprite s, EchoField.Echo e, int color, float shade,
+								  float ax, float ay, float az, float bx, float by, float bz,
+								  float cx2, float cy2, float cz2, float dx, float dy, float dz,
+								  float u0, float u1, float v0, float v1) {
+		float[] px = {ax, bx, cx2, dx}, py = {ay, by, cy2, dy}, pz = {az, bz, cz2, dz};
+		float[] us = {u0, u1, u1, u0}, vs = {v0, v0, v1, v1};
+		float[] lv = new float[4];
+		boolean any = false;
+		for (int j = 0; j < 4; j++) {
+			lv[j] = pointLevel(e, px[j], py[j], pz[j]);
+			any |= lv[j] >= 0.003f;
+		}
+		if (!any) return;
+		float r = ((color >> 16) & 0xFF) / 255f * shade, g = ((color >> 8) & 0xFF) / 255f * shade, b = (color & 0xFF) / 255f * shade;
+		int rgb = (int) (r * 255) << 16 | (int) (g * 255) << 8 | (int) (b * 255);
+		for (int j = 0; j < 4; j++) {
+			int a = (int) (Math.min(1f, lv[j] * 0.5f) * 255);
+			surface.vertex(mat, px[j], py[j], pz[j])
+				.texture(s.getFrameU(us[j]), s.getFrameV(1 - vs[j]))
+				.color(a << 24 | rgb);
+		}
 	}
 
 	/** Открытая грань полного блока: квадраты модели с этой стороны. */
@@ -243,6 +293,10 @@ public final class EchoRenderer {
 	/** Неполный блок (трава, забор, ступени): вся модель. */
 	private static void surfaceWhole(ClientWorld world, EchoField.BlockEcho be, EchoField.Echo e, float x, float y, float z, int color) {
 		List<BakedQuad>[] quads = quadsOf(world, be);
+		if (be.particle != null) {
+			surfaceShape(be, e, x, y, z, color);
+			return;
+		}
 		for (List<BakedQuad> list : quads) {
 			for (BakedQuad q : list) surfaceQuad(q, e, x, y, z, color);
 		}

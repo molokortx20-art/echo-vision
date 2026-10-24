@@ -7,7 +7,8 @@
 	"entrypoints": {
 		"fabric-client-gametest": [
 			"com.dragonyx.echolocation.test.EchoClientGameTest",
-			"com.dragonyx.echolocation.test.EchoShowcaseGameTest"
+			"com.dragonyx.echolocation.test.EchoShowcaseGameTest",
+			"com.dragonyx.echolocation.test.EchoMultiplayerGameTest"
 		]
 	},
 	"depends": {

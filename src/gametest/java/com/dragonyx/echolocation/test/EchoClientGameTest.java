@@ -146,6 +146,24 @@ public final class EchoClientGameTest implements FabricClientGameTest {
 			context.waitTicks(10);
 			shot(context, "13_jump_landing");
 
+			// Пустая рука от первого лица и своё тело от третьего лица.
+			sp.getServer().runCommand("item replace entity @a weapon.mainhand with minecraft:air");
+			context.waitTicks(80);
+			context.runOnClient(client -> {
+				EchoEngine.INSTANCE.pulse();
+				LOG.info("Player echo level right after click: {}", EchoField.INSTANCE.entityLevel(client.player.getId()));
+			});
+			context.waitTicks(4);
+			context.runOnClient(client -> LOG.info("Player echo level: {}", EchoField.INSTANCE.entityLevel(client.player.getId())));
+			shot(context, "14_empty_hand");
+			context.waitTicks(80);
+			context.runOnClient(client -> client.options.setPerspective(net.minecraft.client.option.Perspective.THIRD_PERSON_BACK));
+			context.waitTicks(5);
+			context.runOnClient(client -> EchoEngine.INSTANCE.pulse());
+			context.waitTicks(5);
+			shot(context, "15_third_person");
+			context.runOnClient(client -> client.options.setPerspective(net.minecraft.client.option.Perspective.FIRST_PERSON));
+
 			context.runOnClient(client -> {
 				EchoConfig.get().style = EchoConfig.Style.GRID;
 				EchoConfig.get().colorMode = EchoConfig.ColorMode.DISTANCE;

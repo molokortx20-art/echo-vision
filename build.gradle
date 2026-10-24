@@ -69,6 +69,12 @@ if (project.hasProperty('showcase')) {
 		vmArg "-Dechovision.showcaseDir=${project.file('publish/raw').absolutePath}"
 	}
 }
+// Игра по сети (выделенный сервер): gradlew runClientGameTest -Pmultiplayer
+if (project.hasProperty('multiplayer')) {
+	loom.runs.configureEach {
+		vmArg '-Dechovision.multiplayer=true'
+	}
+}
 if (project.hasProperty('echoDebug')) {
 	loom.runs.configureEach {
 		vmArg '-Dechovision.debug=true'
