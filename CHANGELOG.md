@@ -1,3 +1,10 @@
+## Echo Vision 1.0.3
+
+- Much better FPS while blind (with Sodium): the black world beyond the farthest echo is no longer rendered at all, so blindness now costs less than normal play.
+- Echo rendering is cheaper again: unlit blocks and faces turned away from the camera are skipped early, faded waves are not recalculated, the wave ring needs less clipping.
+- The echo shaders read neighbouring texels only where detail lines can actually appear (lighter on the GPU at high resolutions).
+- Fixed doubled option names in settings ("Style: Style: …").
+
 ## Echo Vision 1.0.2
 
 - Fixed a crash with glowing entities (for example the Glowing effect on servers): "Can't render an outline for this rendertype!".

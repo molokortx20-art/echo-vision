@@ -79,6 +79,8 @@ if (project.hasProperty('multiplayer')) {
 if (project.hasProperty('perf')) {
 	loom.runs.configureEach {
 		vmArg '-Dechovision.perf=true'
+		// Профиль процессора: gradlew runClientGameTest -Pperf -Pjfr → build/perf.jfr
+		if (project.hasProperty('jfr')) vmArg "-XX:StartFlightRecording=filename=${project.file('build/perf.jfr').absolutePath},settings=profile"
 	}
 }
 if (project.hasProperty('echoDebug')) {

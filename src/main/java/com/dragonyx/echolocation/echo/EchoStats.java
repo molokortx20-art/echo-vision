@@ -11,7 +11,7 @@ public final class EchoStats {
 	private static final long PERIOD = 5_000_000_000L;
 
 	private static long periodStart = System.nanoTime();
-	private static long renderNanos, renderMax, frames;
+	private static long renderNanos, renderMax, frames, drawNanos, vertexCount;
 	private static long tickNanos, tickMax, ticks;
 	private static volatile long propagateNanos, propagateMax, waves;
 	private static int peakBlocks;
@@ -26,15 +26,25 @@ public final class EchoStats {
 		long now = System.nanoTime();
 		if (now - periodStart < PERIOD) return;
 		EchoMod.LOGGER.info(String.format(
-			"[perf] frame: avg %.3f ms, max %.3f ms (%d frames) | tick: avg %.3f ms, max %.3f ms | propagation: %d waves, avg %.2f ms, max %.2f ms | blocks peak %d",
-			ms(renderNanos) / Math.max(1, frames), ms(renderMax), frames,
+			"[perf] frame: avg %.3f ms (draw %.3f), max %.3f ms, %d vertices (%d frames) | tick: avg %.3f ms, max %.3f ms | propagation: %d waves, avg %.2f ms, max %.2f ms | blocks peak %d",
+			ms(renderNanos) / Math.max(1, frames), ms(drawNanos) / Math.max(1, frames), ms(renderMax), vertexCount / Math.max(1, frames), frames,
 			ms(tickNanos) / Math.max(1, ticks), ms(tickMax),
 			waves, ms(propagateNanos) / Math.max(1, waves), ms(propagateMax), peakBlocks));
 		periodStart = now;
-		renderNanos = renderMax = frames = 0;
+		renderNanos = renderMax = frames = drawNanos = vertexCount = 0;
 		tickNanos = tickMax = ticks = 0;
 		propagateNanos = propagateMax = waves = 0;
 		peakBlocks = 0;
+	}
+
+	/** Из них — отправка накопленной геометрии на видеокарту. */
+	public static void draw(long nanos) {
+		drawNanos += nanos;
+	}
+
+	/** Сколько вершин эха записано за кадр. */
+	public static void vertices(int n) {
+		vertexCount += n;
 	}
 
 	public static void tick(long nanos) {

@@ -25,28 +25,29 @@ void main() {
 
     vec2 size = vec2(textureSize(Sampler0, 0));
     vec2 tc = texCoord0 * size;
-    ivec2 p = ivec2(tc);
-    // Соседи берутся в пределах своего спрайта 16×16, чтобы края блока не давали ложной сетки.
-    ivec2 lo = (p / 16) * 16;
-    ivec2 hi = lo + ivec2(15);
-    float c = luma(texelFetch(Sampler0, p, 0));
-    float dl = abs(c - luma(texelFetch(Sampler0, clamp(p + ivec2(-1, 0), lo, hi), 0)));
-    float dr = abs(c - luma(texelFetch(Sampler0, clamp(p + ivec2(1, 0), lo, hi), 0)));
-    float du = abs(c - luma(texelFetch(Sampler0, clamp(p + ivec2(0, -1), lo, hi), 0)));
-    float dd = abs(c - luma(texelFetch(Sampler0, clamp(p + ivec2(0, 1), lo, hi), 0)));
+    // Вдали тексели мельче пикселя — линии превратились бы в рябь, поэтому гасим их.
+    // (Производные — до любых ветвлений.)
+    float texelsPerPixel = max(fwidth(tc.x), fwidth(tc.y));
+    float edgeFade = clamp(1.6 - texelsPerPixel * 1.4, 0.0, 1.0);
 
     // Линия рисуется у той границы текселя, за которой яркость заметно меняется.
     vec2 f = fract(tc);
     float w = 0.2;
     float edge = 0.0;
-    edge = max(edge, dl * step(f.x, w));
-    edge = max(edge, dr * step(1.0 - w, f.x));
-    edge = max(edge, du * step(f.y, w));
-    edge = max(edge, dd * step(1.0 - w, f.y));
-    edge = smoothstep(0.05, 0.22, edge);
-    // Вдали тексели мельче пикселя — линии превратились бы в рябь, поэтому гасим их.
-    float texelsPerPixel = max(fwidth(tc.x), fwidth(tc.y));
-    edge *= clamp(1.6 - texelsPerPixel * 1.4, 0.0, 1.0);
+    // Соседние тексели читаем, только если линия тут вообще возможна: у края текселя и не вдали.
+    bool nearEdge = f.x < w || f.x > 1.0 - w || f.y < w || f.y > 1.0 - w;
+    if (edgeFade > 0.0 && nearEdge) {
+        ivec2 p = ivec2(tc);
+        // Соседи берутся в пределах своего спрайта 16×16, чтобы края блока не давали ложной сетки.
+        ivec2 lo = (p / 16) * 16;
+        ivec2 hi = lo + ivec2(15);
+        float c = luma(texelFetch(Sampler0, p, 0));
+        if (f.x < w) edge = max(edge, abs(c - luma(texelFetch(Sampler0, clamp(p + ivec2(-1, 0), lo, hi), 0))));
+        if (f.x > 1.0 - w) edge = max(edge, abs(c - luma(texelFetch(Sampler0, clamp(p + ivec2(1, 0), lo, hi), 0))));
+        if (f.y < w) edge = max(edge, abs(c - luma(texelFetch(Sampler0, clamp(p + ivec2(0, -1), lo, hi), 0))));
+        if (f.y > 1.0 - w) edge = max(edge, abs(c - luma(texelFetch(Sampler0, clamp(p + ivec2(0, 1), lo, hi), 0))));
+        edge = smoothstep(0.05, 0.22, edge) * edgeFade;
+    }
 
     float level = vertexColor.a * 2.0;
     float lit = min(level, 1.0);

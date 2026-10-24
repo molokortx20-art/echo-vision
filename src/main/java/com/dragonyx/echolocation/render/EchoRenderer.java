@@ -96,7 +96,7 @@ public final class EchoRenderer {
 	private static final float BLOCK_RADIUS = 0.87f;
 	private static final Vector3f FORWARD = new Vector3f();
 	/** Яркость вершин квадрата (переиспользуется: отрисовка идёт в одном потоке). */
-	private static final float[] LV = new float[4];
+	private static final float[] LV = new float[4], PX = new float[4], PY = new float[4], PZ = new float[4];
 	private static final int CIRCLE_SEGMENTS = 28;
 
 	private static BufferAllocator allocator;
@@ -140,7 +140,11 @@ public final class EchoRenderer {
 	private static void renderEchoes(WorldRenderContext ctx) {
 		EchoConfig cfg = EchoConfig.get();
 		EchoField field = EchoField.INSTANCE;
-		if (!cfg.echoEnabled || (field.blocks.isEmpty() && field.sources.isEmpty())) return;
+		if (!cfg.echoEnabled || (field.blocks.isEmpty() && field.sources.isEmpty())) {
+			now = EchoClock.now();
+			updateReach(0f);
+			return;
+		}
 
 		if (immediate == null) {
 			allocator = new BufferAllocator(1 << 21);
@@ -171,19 +175,26 @@ public final class EchoRenderer {
 		vc = immediate.getBuffer(LAYER);
 		surface = vision ? surfaceImmediate.getBuffer(SURFACE_LAYER) : null;
 
+		float farthest = 0f;
 		for (EchoField.BlockEcho be : field.blocks.values()) {
+			// Сначала дешёвая проверка: блок, на котором ничего не светится, пропускаем сразу.
+			if (!anyLit(be)) continue;
 			int bx = BlockPos.unpackLongX(be.pos), by = BlockPos.unpackLongY(be.pos), bz = BlockPos.unpackLongZ(be.pos);
 			float rx = (float) (bx - camX), ry = (float) (by - camY), rz = (float) (bz - camZ);
+			float len = dist(rx + 0.5f, ry + 0.5f, rz + 0.5f);
+			if (len > farthest) farthest = len;
 			// Блоки вне поля зрения не рисуем (конус чуть шире экрана, с запасом на размер блока).
-			if (!inView(rx + 0.5f, ry + 0.5f, rz + 0.5f, fwd, cosView)) continue;
+			if (!inView(rx + 0.5f, ry + 0.5f, rz + 0.5f, len, fwd, cosView)) continue;
 
 			for (int f = 0; f < 6; f++) {
 				EchoField.Echo e = be.slots[f];
 				if (e == null || !lit(e)) continue;
+				boolean facing = facesCamera(f, rx, ry, rz);
+				// В эхо-зрении грань, повёрнутая от камеры, ничего не рисует (кроме контуров, если включены).
+				if (!facing && vision && !cfg.visionContours) continue;
 				int color = e.colorAt(now, dur);
 				setFace(f, rx, ry, rz);
 				beginFace(f, rx, ry, rz);
-				boolean facing = facesCamera(f, rx, ry, rz);
 				switch (cfg.style) {
 					case ECHO_VISION -> {
 						if (facing) surfaceFace(world, be, f, e, rx, ry, rz, color);
@@ -220,8 +231,16 @@ public final class EchoRenderer {
 				(float) (0.15 + 0.85 * t), s.color(), (float) (1 - t) * (float) (1 - t) * s.intensity() * brightness);
 		}
 
+		updateReach(farthest);
+
+		long tDraw = EchoStats.ENABLED ? System.nanoTime() : 0;
 		if (surface != null) surfaceImmediate.draw();
 		immediate.draw();
+		if (EchoStats.ENABLED) {
+			EchoStats.draw(System.nanoTime() - tDraw);
+			EchoStats.vertices(vertices);
+		}
+		vertices = 0;
 		vc = null;
 		surface = null;
 	}
@@ -244,12 +263,45 @@ public final class EchoRenderer {
 	 * Шар радиусом в полблока по диагонали вокруг точки c (относительно камеры) хоть краем в конусе обзора.
 	 * Без тригонометрии: если даже самая «удачная» точка шара не проходит, блок точно не виден.
 	 */
-	private static boolean inView(float cx, float cy, float cz, Vector3f fwd, float cosView) {
-		if (cosView <= 0) return true;
-		float len = dist(cx, cy, cz);
-		if (len < 2.5f) return true;
+	private static boolean inView(float cx, float cy, float cz, float len, Vector3f fwd, float cosView) {
+		if (cosView <= 0 || len < 2.5f) return true;
 		float d = cx * fwd.x + cy * fwd.y + cz * fwd.z;
 		return d + BLOCK_RADIUS >= (len - BLOCK_RADIUS) * cosView;
+	}
+
+	private static boolean anyLit(EchoField.BlockEcho be) {
+		for (EchoField.Echo e : be.slots) {
+			if (e != null && lit(e)) return true;
+		}
+		return false;
+	}
+
+	// ---------- дальность эха для отсечения чанков ----------
+
+	/** На сколько блоков в секунду сжимается дальность, когда дальние эхо погасли. */
+	private static final float REACH_SHRINK = 24f;
+	private static volatile float reach;
+	private static double reachTime;
+
+	/**
+	 * Дальность самого далёкого светящегося эха от камеры. Растёт сразу, сжимается плавно — чтобы
+	 * Sodium не дёргал дальность поиска чанков каждый кадр.
+	 */
+	private static void updateReach(float farthest) {
+		double dt = Math.min(0.5, Math.max(0, now - reachTime));
+		reachTime = now;
+		reach = Math.max(farthest, reach - (float) (dt * REACH_SHRINK));
+	}
+
+	/**
+	 * Докуда в слепоте нужен мир: дальше самого далёкого эха всё равно сплошная тьма. Ближе — нужен:
+	 * без его глубины эхо за стенами просвечивало бы. Запас — на фронт, который ещё идёт к стенам.
+	 */
+	public static float worldReach() {
+		EchoConfig cfg = EchoConfig.get();
+		float min = Math.max(32f, cfg.visionRadius + 16f);
+		if (!cfg.echoEnabled) return min;
+		return Math.max(min, reach + 24f);
 	}
 
 	/** Грань светится хоть одной волной (с запасом: углы грани освещаются чуть раньше и позже центра). */
@@ -356,23 +408,25 @@ public final class EchoRenderer {
 	}
 
 	private static void surfaceQuad(BakedQuad q, EchoField.Echo e, float x, float y, float z, int color) {
-		float[] lv = LV;
+		float[] lv = LV, px = PX, py = PY, pz = PZ;
 		boolean any = false;
 		for (int j = 0; j < 4; j++) {
 			Vector3fc p = q.getPosition(j);
-			float px = x + p.x(), py = y + p.y(), pz = z + p.z();
-			lv[j] = pointLevel(e, px, py, pz);
+			px[j] = x + p.x();
+			py[j] = y + p.y();
+			pz[j] = z + p.z();
+			lv[j] = pointLevel(e, px[j], py[j], pz[j]);
 			any |= lv[j] >= 0.003f;
 		}
 		if (!any) return;
+		vertices += 4;
 		float shade = q.shade() ? SHADE[q.face().ordinal()] : 1f;
 		float r = ((color >> 16) & 0xFF) / 255f * shade, g = ((color >> 8) & 0xFF) / 255f * shade, b = (color & 0xFF) / 255f * shade;
 		int rgb = (int) (r * 255) << 16 | (int) (g * 255) << 8 | (int) (b * 255);
 		for (int j = 0; j < 4; j++) {
-			Vector3fc p = q.getPosition(j);
 			long uv = q.getTexcoords(j);
 			int a = (int) (Math.min(1f, lv[j] * 0.5f) * 255);
-			surface.vertex(mat, x + p.x(), y + p.y(), z + p.z())
+			surface.vertex(mat, px[j], py[j], pz[j])
 				.texture(Vector2f.getX(uv), Vector2f.getY(uv))
 				.color(a << 24 | rgb);
 		}
@@ -460,8 +514,11 @@ public final class EchoRenderer {
 	 */
 	private static float pointLevel(EchoField.Echo e, float px, float py, float pz) {
 		float best = 0f;
+		float slack = 2.5f / speed;
 		for (int k = 0; k < 2; k++) {
-			if (Double.isNaN(e.arrival[k])) continue;
+			// Волна уже погасла на всей грани (или ещё не дошла) — не считаем расстояния. NaN тоже отсеивается.
+			double age0 = now - e.arrival[k];
+			if (!(age0 >= -slack && age0 <= dur + slack)) continue;
 			float euclid = euclidTo(e, k, px, py, pz);
 			float d = waveDistance(e, k, px, py, pz, euclid);
 			float age = (float) (now - e.start[k]) - d / speed;
@@ -620,6 +677,11 @@ public final class EchoRenderer {
 					float gu = (gs[b] - gs[a]) * n, gv = (gs[d] - gs[a]) * n;
 					band = ringWidth * Math.max(0.08f, Math.min(1f, (float) Math.sqrt(gu * gu + gv * gv)));
 					if (hi < 0 || lo > band) continue;
+					if (lo >= 0 && hi <= band) {
+						// Клетка целиком внутри кольца — резать не нужно.
+						ringCell(a, b, cc, d, strength, c);
+						continue;
+					}
 					ringTriangle(a, b, cc, strength, c);
 					ringTriangle(a, cc, d, strength, c);
 				}
@@ -630,6 +692,17 @@ public final class EchoRenderer {
 	/** Точка грани по долям (u, v) между её углами 0-1-2-3. */
 	private static float bilerp(float[] q, float u, float v) {
 		return q[0] * (1 - u) * (1 - v) + q[1] * u * (1 - v) + q[2] * u * v + q[3] * (1 - u) * v;
+	}
+
+	private static void ringCell(int a, int b, int c, int d, float strength, int color) {
+		int ca = ringColor(color, gs[a], strength), cb = ringColor(color, gs[b], strength);
+		int cc = ringColor(color, gs[c], strength), cd = ringColor(color, gs[d], strength);
+		vertex(gx[a], gy[a], gz[a], ca);
+		vertex(gx[b], gy[b], gz[b], cb);
+		vertex(gx[c], gy[c], gz[c], cc);
+		vertex(gx[a], gy[a], gz[a], ca);
+		vertex(gx[c], gy[c], gz[c], cc);
+		vertex(gx[d], gy[d], gz[d], cd);
 	}
 
 	private static void ringTriangle(int a, int b, int c, float strength, int color) {
@@ -715,7 +788,11 @@ public final class EchoRenderer {
 
 	private static void vertex(float x, float y, float z, int argb) {
 		vc.vertex(mat, x, y, z).color(argb);
+		vertices++;
 	}
+
+	/** Счётчик вершин кадра для EchoStats. */
+	private static int vertices;
 
 	private static float dist(float x, float y, float z) {
 		return (float) Math.sqrt(x * x + y * y + z * z);

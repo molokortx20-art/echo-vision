@@ -128,9 +128,9 @@ public final class EchoConfigScreen extends GameOptionsScreen {
 
 	private static <E extends Enum<E>> SimpleOption<E> cycle(String key, E[] values, E value, Consumer<E> set) {
 		Codec<E> codec = Codec.INT.xmap(i -> values[Math.max(0, Math.min(values.length - 1, i))], Enum::ordinal);
+		// Кнопка-переключатель сама пишет «Название: » перед значением — здесь только значение.
 		return new SimpleOption<>(P + key, SimpleOption.emptyTooltip(),
-			(optionText, v) -> Text.empty().append(optionText).append(": ")
-				.append(Text.translatable(P + key + "." + v.name().toLowerCase(Locale.ROOT))),
+			(optionText, v) -> Text.translatable(P + key + "." + v.name().toLowerCase(Locale.ROOT)),
 			new SimpleOption.PotentialValuesBasedCallbacks<>(Arrays.asList(values), codec),
 			value, v -> {
 				set.accept(v);
