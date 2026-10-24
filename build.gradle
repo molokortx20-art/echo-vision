@@ -1,0 +1,94 @@
+plugins {
+	id 'fabric-loom' version "${loom_version}"
+	id 'java'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+	archivesName = project.archives_base_name
+}
+
+repositories {
+	maven {
+		name = 'Modrinth'
+		url = 'https://api.modrinth.com/maven'
+	}
+	maven {
+		name = 'plasmoverse'
+		url = 'https://repo.plasmoverse.com/releases'
+	}
+	maven {
+		name = 'henkelmax'
+		url = 'https://maven.maxhenkel.de/repository/public'
+	}
+}
+
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = 'echovision-test'
+		enableGameTests = false
+		enableClientGameTests = true
+		eula = true
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+	modCompileOnly "maven.modrinth:modmenu:${project.modmenu_version}"
+	compileOnly "de.maxhenkel.voicechat:voicechat-api:${project.voicechat_api_version}"
+	// API Plasmo Voice — из repo.plasmoverse.com. Если он недоступен, можно собрать против jar
+	// самого мода Plasmo Voice: -PplasmoJar=<путь> или положить его в .tools/libs.
+	def plasmoJar = project.hasProperty('plasmoJar') ? file(project.property('plasmoJar'))
+		: file(".tools/libs/plasmovoice-fabric-1.21.11-${project.plasmovoice_api_version}.jar")
+	if (plasmoJar.exists()) {
+		compileOnly files(plasmoJar)
+		gametestCompileOnly files(plasmoJar)
+	} else {
+		compileOnly "su.plo.voice.api:client:${project.plasmovoice_api_version}"
+		gametestCompileOnly "su.plo.voice.api:client:${project.plasmovoice_api_version}"
+	}
+}
+
+// Проверка совместимости с чужими модами (Sodium и т. п.):
+// gradlew runClientGameTest -PcompatMods=<папка с jar>
+if (project.hasProperty('compatMods')) {
+	loom.runs.configureEach {
+		vmArg "-Dfabric.addMods=${project.property('compatMods')}"
+	}
+}
+// Витринные скриншоты для страницы мода: gradlew runClientGameTest -Pshowcase
+if (project.hasProperty('showcase')) {
+	loom.runs.configureEach {
+		vmArg '-Dechovision.showcase=true'
+		vmArg "-Dechovision.showcaseDir=${project.file('publish/raw').absolutePath}"
+	}
+}
+if (project.hasProperty('echoDebug')) {
+	loom.runs.configureEach {
+		vmArg '-Dechovision.debug=true'
+		vmArg '-Dmixin.debug.export=true'
+	}
+}
+
+processResources {
+	inputs.property 'version', project.version
+	filesMatching('fabric.mod.json') {
+		expand 'version': project.version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 21
+	it.options.encoding = 'UTF-8'
+}
+
+java {
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
+}

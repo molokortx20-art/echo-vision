@@ -1,0 +1,55 @@
+#version 330
+
+#moj_import <minecraft:dynamictransforms.glsl>
+
+// Эхо-зрение для существ: та же картинка, что у блоков — оттенки серого и линии деталей текстуры.
+// vertexColor.rgb — цвет эха, vertexColor.a — яркость эха / 2 (до 2 со вспышкой фронта).
+
+uniform sampler2D Sampler0;
+
+in vec2 texCoord0;
+in vec4 vertexColor;
+in float shade;
+
+out vec4 fragColor;
+
+float luma(vec4 c) {
+    return dot(c.rgb, vec3(0.299, 0.587, 0.114)) * step(0.1, c.a);
+}
+
+void main() {
+    vec4 tex = texture(Sampler0, texCoord0);
+    if (tex.a < 0.1) {
+        discard;
+    }
+
+    ivec2 isize = textureSize(Sampler0, 0);
+    vec2 tc = texCoord0 * vec2(isize);
+    ivec2 p = ivec2(tc);
+    ivec2 hi = isize - ivec2(1);
+    float c = luma(texelFetch(Sampler0, p, 0));
+    float dl = abs(c - luma(texelFetch(Sampler0, clamp(p + ivec2(-1, 0), ivec2(0), hi), 0)));
+    float dr = abs(c - luma(texelFetch(Sampler0, clamp(p + ivec2(1, 0), ivec2(0), hi), 0)));
+    float du = abs(c - luma(texelFetch(Sampler0, clamp(p + ivec2(0, -1), ivec2(0), hi), 0)));
+    float dd = abs(c - luma(texelFetch(Sampler0, clamp(p + ivec2(0, 1), ivec2(0), hi), 0)));
+
+    vec2 f = fract(tc);
+    float w = 0.2;
+    float edge = 0.0;
+    edge = max(edge, dl * step(f.x, w));
+    edge = max(edge, dr * step(1.0 - w, f.x));
+    edge = max(edge, du * step(f.y, w));
+    edge = max(edge, dd * step(1.0 - w, f.y));
+    edge = smoothstep(0.05, 0.22, edge);
+    float texelsPerPixel = max(fwidth(tc.x), fwidth(tc.y));
+    edge *= clamp(1.6 - texelsPerPixel * 1.4, 0.0, 1.0);
+
+    float level = vertexColor.a * 2.0;
+    float lit = min(level, 1.0);
+    float gray = luma(tex) * 0.75 + 0.1;
+    vec3 col = vertexColor.rgb * (gray * shade * lit * 0.9 + edge * lit * 0.45);
+    float flash = max(level - 1.0, 0.0);
+    col += vec3(flash * (0.25 + 0.5 * edge));
+
+    fragColor = vec4(col, 1.0) * ColorModulator;
+}

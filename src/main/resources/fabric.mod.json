@@ -1,0 +1,33 @@
+{
+	"schemaVersion": 1,
+	"id": "echovision",
+	"version": "${version}",
+	"name": "Echo Vision",
+	"description": "You are blind. Every sound — steps, jumps, mobs, voice chat — sends out a wave that travels through the air, around corners and down tunnels, briefly revealing the world in black and white.",
+	"authors": ["dragonyx"],
+	"contact": {
+		"homepage": "https://modrinth.com/mod/echo-vision",
+		"sources": "https://github.com/molokortx20-art/echo-vision",
+		"issues": "https://github.com/molokortx20-art/echo-vision/issues"
+	},
+	"license": "MIT",
+	"icon": "assets/echovision/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"client": ["com.dragonyx.echolocation.EchoMod"],
+		"modmenu": ["com.dragonyx.echolocation.compat.ModMenuIntegration"],
+		"voicechat": ["com.dragonyx.echolocation.compat.EchoVoicePlugin"]
+	},
+	"mixins": ["echovision.mixins.json", "echovision.sodium.mixins.json"],
+	"depends": {
+		"fabricloader": ">=0.18.0",
+		"minecraft": "~1.21.11",
+		"java": ">=21",
+		"fabric-api": "*"
+	},
+	"suggests": {
+		"modmenu": "*",
+		"voicechat": "*",
+		"plasmovoice": "*"
+	}
+}
