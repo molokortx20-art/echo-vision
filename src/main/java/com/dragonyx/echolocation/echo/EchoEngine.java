@@ -132,7 +132,9 @@ public final class EchoEngine {
 			cfg.wallAbsorption, cfg.wallPenetration, Math.min(cfg.maxBlocks, 60_000));
 		executor.execute(() -> {
 			try {
+				long t0 = EchoStats.ENABLED ? System.nanoTime() : 0;
 				propagator.propagate(world, job);
+				if (EchoStats.ENABLED) EchoStats.propagation(System.nanoTime() - t0);
 			} catch (Throwable t) {
 				// Мир меняется параллельно — редкий сбой одной волны не страшен.
 				EchoMod.LOGGER.debug("Echo propagation failed", t);
@@ -143,6 +145,12 @@ public final class EchoEngine {
 
 	/** Каждый тик клиента. */
 	public void tick(MinecraftClient client) {
+		long t0 = EchoStats.ENABLED ? System.nanoTime() : 0;
+		tickWaves(client);
+		if (EchoStats.ENABLED) EchoStats.tick(System.nanoTime() - t0);
+	}
+
+	private void tickWaves(MinecraftClient client) {
 		ClientWorld world = client.world;
 		Finished f;
 		while ((f = finished.poll()) != null) {

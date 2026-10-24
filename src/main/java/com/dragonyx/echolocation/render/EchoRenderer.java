@@ -4,6 +4,7 @@ import com.dragonyx.echolocation.EchoMod;
 import com.dragonyx.echolocation.config.EchoConfig;
 import com.dragonyx.echolocation.echo.EchoClock;
 import com.dragonyx.echolocation.echo.EchoField;
+import com.dragonyx.echolocation.echo.EchoStats;
 import com.mojang.blaze3d.pipeline.BlendFunction;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.vertex.VertexFormat;
@@ -91,6 +92,11 @@ public final class EchoRenderer {
 
 	/** Отступ заливки и кольца от грани блока, чтобы не мерцать вместе с ней. */
 	private static final float EPS = 0.004f;
+	/** Радиус шара, описанного вокруг блока. */
+	private static final float BLOCK_RADIUS = 0.87f;
+	private static final Vector3f FORWARD = new Vector3f();
+	/** Яркость вершин квадрата (переиспользуется: отрисовка идёт в одном потоке). */
+	private static final float[] LV = new float[4];
 	private static final int CIRCLE_SEGMENTS = 28;
 
 	private static BufferAllocator allocator;
@@ -126,6 +132,12 @@ public final class EchoRenderer {
 	}
 
 	public static void render(WorldRenderContext ctx) {
+		long t0 = EchoStats.ENABLED ? System.nanoTime() : 0;
+		renderEchoes(ctx);
+		if (EchoStats.ENABLED) EchoStats.frame(System.nanoTime() - t0);
+	}
+
+	private static void renderEchoes(WorldRenderContext ctx) {
 		EchoConfig cfg = EchoConfig.get();
 		EchoField field = EchoField.INSTANCE;
 		if (!cfg.echoEnabled || (field.blocks.isEmpty() && field.sources.isEmpty())) return;
@@ -145,7 +157,8 @@ public final class EchoRenderer {
 		camX = cam.x;
 		camY = cam.y;
 		camZ = cam.z;
-		Vector3f fwd = new Vector3f(0, 0, -1).rotate(ctx.worldState().cameraRenderState.orientation);
+		Vector3f fwd = FORWARD.set(0, 0, -1).rotate(ctx.worldState().cameraRenderState.orientation);
+		float cosView = viewCone();
 		now = EchoClock.now();
 		dur = cfg.echoDuration;
 		speed = cfg.soundSpeed;
@@ -161,12 +174,12 @@ public final class EchoRenderer {
 		for (EchoField.BlockEcho be : field.blocks.values()) {
 			int bx = BlockPos.unpackLongX(be.pos), by = BlockPos.unpackLongY(be.pos), bz = BlockPos.unpackLongZ(be.pos);
 			float rx = (float) (bx - camX), ry = (float) (by - camY), rz = (float) (bz - camZ);
-			// Блоки за спиной не рисуем.
-			if ((rx + 0.5f) * fwd.x + (ry + 0.5f) * fwd.y + (rz + 0.5f) * fwd.z < -1.8f) continue;
+			// Блоки вне поля зрения не рисуем (конус чуть шире экрана, с запасом на размер блока).
+			if (!inView(rx + 0.5f, ry + 0.5f, rz + 0.5f, fwd, cosView)) continue;
 
 			for (int f = 0; f < 6; f++) {
 				EchoField.Echo e = be.slots[f];
-				if (e == null) continue;
+				if (e == null || !lit(e)) continue;
 				int color = e.colorAt(now, dur);
 				setFace(f, rx, ry, rz);
 				beginFace(f, rx, ry, rz);
@@ -184,7 +197,7 @@ public final class EchoRenderer {
 			}
 
 			EchoField.Echo whole = be.slots[6];
-			if (whole != null && be.shape != null) {
+			if (whole != null && be.shape != null && lit(whole)) {
 				int color = whole.colorAt(now, dur);
 				beginFace(6, rx, ry, rz);
 				if (vision) {
@@ -213,14 +226,54 @@ public final class EchoRenderer {
 		surface = null;
 	}
 
+	// ---------- отсечение ----------
+
+	/** Косинус половины угла конуса, в котором что-то видно на экране (диагональ кадра с запасом); -1 — не отсекать. */
+	private static float viewCone() {
+		MinecraftClient client = MinecraftClient.getInstance();
+		int w = client.getWindow().getFramebufferWidth(), h = client.getWindow().getFramebufferHeight();
+		if (w <= 0 || h <= 0) return -1f;
+		double aspect = (double) w / h;
+		// Запас 1.35 по тангенсу — на эффекты поля зрения (бег, скорость) и моды приближения.
+		double tanHalf = Math.tan(Math.toRadians(client.options.getFov().getValue()) * 0.5) * 1.35;
+		double tanDiag = tanHalf * Math.sqrt(1 + aspect * aspect);
+		return (float) (1 / Math.sqrt(1 + tanDiag * tanDiag));
+	}
+
+	/**
+	 * Шар радиусом в полблока по диагонали вокруг точки c (относительно камеры) хоть краем в конусе обзора.
+	 * Без тригонометрии: если даже самая «удачная» точка шара не проходит, блок точно не виден.
+	 */
+	private static boolean inView(float cx, float cy, float cz, Vector3f fwd, float cosView) {
+		if (cosView <= 0) return true;
+		float len = dist(cx, cy, cz);
+		if (len < 2.5f) return true;
+		float d = cx * fwd.x + cy * fwd.y + cz * fwd.z;
+		return d + BLOCK_RADIUS >= (len - BLOCK_RADIUS) * cosView;
+	}
+
+	/** Грань светится хоть одной волной (с запасом: углы грани освещаются чуть раньше и позже центра). */
+	private static boolean lit(EchoField.Echo e) {
+		float slack = 2.5f / speed;
+		for (int k = 0; k < 2; k++) {
+			double age = now - e.arrival[k];
+			if (age >= -slack && age <= dur + slack) return true; // NaN не проходит
+		}
+		return false;
+	}
+
 	// ---------- эхо-зрение: модели блоков ----------
 
 	@SuppressWarnings("unchecked")
 	private static List<BakedQuad>[] quadsOf(ClientWorld world, EchoField.BlockEcho be) {
-		if (be.quads != null) return be.quads;
+		if (be.quads != null && !be.stale) return be.quads;
+		BlockState state = world.getBlockState(BlockPos.fromLong(be.pos));
+		be.stale = false;
+		// Блок тот же — модель уже собрана.
+		if (be.quads != null && state == be.state) return be.quads;
+		be.state = state;
 		List<BakedQuad>[] out = new List[7];
 		for (int i = 0; i < 7; i++) out[i] = new ArrayList<>();
-		BlockState state = world.getBlockState(BlockPos.fromLong(be.pos));
 		be.particle = null;
 		if (state.getRenderType() != BlockRenderType.INVISIBLE) {
 			BlockStateModel model = MinecraftClient.getInstance().getBlockRenderManager().getModel(state);
@@ -262,7 +315,7 @@ public final class EchoRenderer {
 								  float u0, float u1, float v0, float v1) {
 		float[] px = {ax, bx, cx2, dx}, py = {ay, by, cy2, dy}, pz = {az, bz, cz2, dz};
 		float[] us = {u0, u1, u1, u0}, vs = {v0, v0, v1, v1};
-		float[] lv = new float[4];
+		float[] lv = LV;
 		boolean any = false;
 		for (int j = 0; j < 4; j++) {
 			lv[j] = pointLevel(e, px[j], py[j], pz[j]);
@@ -303,7 +356,7 @@ public final class EchoRenderer {
 	}
 
 	private static void surfaceQuad(BakedQuad q, EchoField.Echo e, float x, float y, float z, int color) {
-		float[] lv = new float[4];
+		float[] lv = LV;
 		boolean any = false;
 		for (int j = 0; j < 4; j++) {
 			Vector3fc p = q.getPosition(j);
@@ -530,6 +583,9 @@ public final class EchoRenderer {
 		int n = camDist < 10 ? MAX_SPLIT : camDist < 24 ? 4 : camDist < 48 ? 2 : 1;
 		for (int k = 0; k < 2; k++) {
 			if (Double.isNaN(e.arrival[k])) continue;
+			// Фронт далеко от центра грани — кольца на ней нет, углы можно не считать.
+			float atCenter = (float) ((now - e.arrival[k]) * speed);
+			if (atCenter < -1.5f || atCenter > ringWidth + 1.5f) continue;
 			// Быстрая проверка по углам (с запасом на изгиб фронта внутри грани).
 			float s0 = behindFront(e, k, qx[0], qy[0], qz[0]), s1 = behindFront(e, k, qx[1], qy[1], qz[1]);
 			float s2 = behindFront(e, k, qx[2], qy[2], qz[2]), s3 = behindFront(e, k, qx[3], qy[3], qz[3]);

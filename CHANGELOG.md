@@ -1,3 +1,9 @@
+## Echo Vision 1.0.2
+
+- Fixed a crash with glowing entities (for example the Glowing effect on servers): "Can't render an outline for this rendertype!".
+- About twice as fast echo rendering: echoes outside the screen and faded surfaces are skipped, block models are no longer rebuilt by every wave (no more stutter spikes).
+- Riders, parrots on shoulders and other nested entities keep the correct echo brightness.
+
 ## Echo Vision 1.0.1
 
 - Chests, signs, banners, beds and other block entities now show in echo vision.

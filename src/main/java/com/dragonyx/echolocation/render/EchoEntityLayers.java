@@ -34,6 +34,8 @@ public final class EchoEntityLayers {
 	private static final int STEPS = 16;
 	/** Наибольшая яркость ступени (со вспышкой фронта). */
 	private static final float MAX_LEVEL = 2.0f;
+	/** Предел кэшей слоёв и текстур. */
+	private static final int MAX_CACHED = 4096;
 
 	private static final RenderPipeline[] PIPELINES = new RenderPipeline[STEPS];
 
@@ -99,11 +101,15 @@ public final class EchoEntityLayers {
 		Identifier texture = textureOf(layer);
 		if (texture == null) return layer;
 		int step = Math.max(0, Math.min(STEPS - 1, Math.round(level / MAX_LEVEL * STEPS) - 1));
+		if (LAYERS.size() > MAX_CACHED) LAYERS.clear();
 		RenderLayer[] layers = LAYERS.computeIfAbsent(texture, t -> new RenderLayer[STEPS]);
 		RenderLayer echo = layers[step];
 		if (echo == null) {
 			echo = layers[step] = RenderLayer.of("echovision_entity_" + step, RenderSetup.builder(PIPELINES[step])
 				.texture("Sampler0", texture)
+				// Светящиеся сущности (эффект свечения) рисуются ещё и обводкой: без своей обводки
+				// слой ронял игру («Can't render an outline for this rendertype!»).
+				.outlineMode(RenderSetup.OutlineMode.AFFECTS_OUTLINE)
 				.expectedBufferSize(1536)
 				.build());
 		}
@@ -115,6 +121,8 @@ public final class EchoEntityLayers {
 	 * не тень, не блеск зачарования и не наш собственный слой.
 	 */
 	private static Identifier textureOf(RenderLayer layer) {
+		// Некоторые моды создают слои каждый кадр — кэш не должен расти без конца.
+		if (TEXTURES.size() > MAX_CACHED) TEXTURES.clear();
 		return TEXTURES.computeIfAbsent(layer, l -> {
 			if (l.isOutline() || l.getVertexFormat() != VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL) return Optional.empty();
 			for (RenderPipeline p : PIPELINES) if (l.getRenderPipeline() == p) return Optional.empty();

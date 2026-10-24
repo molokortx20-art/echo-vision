@@ -26,7 +26,7 @@ import su.plo.voice.proto.packets.udp.serverbound.PlayerAudioPacket;
 	id = "pv-addon-echovision",
 	name = "Echo Vision",
 	scope = AddonLoaderScope.CLIENT,
-	version = "1.0.1",
+	version = "1.0.2",
 	authors = {"dragonyx"}
 )
 public final class PlasmoVoiceAddon {

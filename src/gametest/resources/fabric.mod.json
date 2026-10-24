@@ -1,14 +1,15 @@
 {
 	"schemaVersion": 1,
 	"id": "echovision-test",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"name": "Echo Vision tests",
 	"environment": "client",
 	"entrypoints": {
 		"fabric-client-gametest": [
 			"com.dragonyx.echolocation.test.EchoClientGameTest",
 			"com.dragonyx.echolocation.test.EchoShowcaseGameTest",
-			"com.dragonyx.echolocation.test.EchoMultiplayerGameTest"
+			"com.dragonyx.echolocation.test.EchoMultiplayerGameTest",
+			"com.dragonyx.echolocation.test.EchoPerfGameTest"
 		]
 	},
 	"depends": {

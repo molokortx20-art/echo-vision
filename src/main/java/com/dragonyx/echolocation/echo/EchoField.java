@@ -8,6 +8,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectIterator;
+import net.minecraft.block.BlockState;
 import net.minecraft.client.render.model.BakedQuad;
 import net.minecraft.client.texture.Sprite;
 import net.minecraft.entity.Entity;
@@ -163,8 +164,12 @@ public final class EchoField {
 		/** Маски рёбер-контуров для граней 0–5. */
 		public final byte[] edges = new byte[6];
 		public VoxelShape shape;
-		/** Квадраты модели блока для эхо-зрения: [0–5] по сторонам, [6] — без стороны. Сбрасывается новой волной. */
+		/** Квадраты модели блока для эхо-зрения: [0–5] по сторонам, [6] — без стороны. */
 		public List<BakedQuad>[] quads;
+		/** Состояние блока, из которого собраны quads. */
+		public BlockState state;
+		/** Пришла новая волна — блок мог измениться, перед отрисовкой сверить state. */
+		public boolean stale;
 		/** Текстура для формы блок-сущности, которую Better Block Entities вшил в мир (иначе null). */
 		public Sprite particle;
 
@@ -195,7 +200,7 @@ public final class EchoField {
 				blocks.put(p, be);
 			}
 			int f = r.face[i];
-			be.quads = null; // блок мог измениться с прошлой волны
+			be.stale = true; // блок мог измениться с прошлой волны
 			if (f == 6) {
 				if (r.shape[i] != null) be.shape = r.shape[i];
 			} else {
@@ -253,7 +258,18 @@ public final class EchoField {
 	public static float falloff(float d, float range) {
 		float k = 1f - d / range;
 		if (k <= 0) return 0;
-		return (float) Math.pow(k, 0.7);
+		if (k >= 1) return 1;
+		// k^0.7 по таблице: считается для каждой вершины каждый кадр, Math.pow тут дорог.
+		float i = k * FALLOFF_STEPS;
+		int j = (int) i;
+		return FALLOFF[j] + (FALLOFF[j + 1] - FALLOFF[j]) * (i - j);
+	}
+
+	private static final int FALLOFF_STEPS = 1024;
+	private static final float[] FALLOFF = new float[FALLOFF_STEPS + 1];
+
+	static {
+		for (int i = 0; i <= FALLOFF_STEPS; i++) FALLOFF[i] = (float) Math.pow((double) i / FALLOFF_STEPS, 0.7);
 	}
 
 	public void prune() {

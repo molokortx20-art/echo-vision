@@ -18,6 +18,7 @@ public final class EchoClientGameTest implements FabricClientGameTest {
 
 	@Override
 	public void runTest(ClientGameTestContext context) {
+		if (Boolean.getBoolean("echovision.perf")) return;
 		context.runOnClient(client -> {
 			EchoConfig.reset();
 			client.options.getFov().setValue(80);
@@ -162,6 +163,26 @@ public final class EchoClientGameTest implements FabricClientGameTest {
 			context.runOnClient(client -> EchoEngine.INSTANCE.pulse());
 			context.waitTicks(5);
 			shot(context, "15_third_person");
+			context.runOnClient(client -> client.options.setPerspective(net.minecraft.client.option.Perspective.FIRST_PERSON));
+
+			// F5 несколько раз подряд, с бронёй и мечом, пока своё тело светится эхом.
+			// Свечение (как на серверах) рисует ещё и обводку: на нём игра падала у игрока.
+			sp.getServer().runCommand("effect give @a minecraft:glowing infinite 0 true");
+			sp.getServer().runCommand("effect give @e[type=minecraft:zombie] minecraft:glowing infinite 0 true");
+			sp.getServer().runCommand("item replace entity @a weapon.mainhand with minecraft:iron_sword");
+			sp.getServer().runCommand("item replace entity @a weapon.offhand with minecraft:shield");
+			sp.getServer().runCommand("item replace entity @a armor.chest with minecraft:elytra");
+			sp.getServer().runCommand("item replace entity @a armor.head with minecraft:diamond_helmet");
+			context.waitTicks(10);
+			for (int i = 0; i < 8; i++) {
+				context.runOnClient(client -> EchoEngine.INSTANCE.pulse());
+				context.waitTicks(2);
+				context.getInput().pressKey(options -> options.togglePerspectiveKey);
+				context.waitTicks(3);
+				int n = i;
+				context.runOnClient(client -> LOG.info("F5 #{}: {}", n + 1, client.options.getPerspective()));
+				if (i < 3) shot(context, "16_f5_" + (i + 1));
+			}
 			context.runOnClient(client -> client.options.setPerspective(net.minecraft.client.option.Perspective.FIRST_PERSON));
 
 			context.runOnClient(client -> {

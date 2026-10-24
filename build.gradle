@@ -75,6 +75,12 @@ if (project.hasProperty('multiplayer')) {
 		vmArg '-Dechovision.multiplayer=true'
 	}
 }
+// Замер затрат мода (только этот тест, остальные пропускаются): gradlew runClientGameTest -Pperf
+if (project.hasProperty('perf')) {
+	loom.runs.configureEach {
+		vmArg '-Dechovision.perf=true'
+	}
+}
 if (project.hasProperty('echoDebug')) {
 	loom.runs.configureEach {
 		vmArg '-Dechovision.debug=true'
