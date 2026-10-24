@@ -22,7 +22,7 @@ Listen. Move carefully. Make noise to see — and remember that everything else 
 - **Sound travels like sound.** Waves go through the air only: down corridors, through doorways and around corners, getting weaker at every turn. Walls block them — no X-ray.
 - **Round, smooth wavefront.** A thin bright ring races across floors and walls at the speed of sound (configurable), then the revealed surfaces slowly fade.
 - **Echo Vision look.** Revealed blocks keep their real models and textures, rendered in grayscale with fine lines along texture details.
-- **Mobs in the same style.** Creatures are revealed the moment the wave reaches them — and fade back into the dark.
+- **Everything in the same style.** Mobs with their armor and held items, chests and other block entities, boats, item frames, dropped items — and your own hand — are revealed the moment the wave reaches them, then fade back into the dark.
 - **Active echolocation.** Press **V** to click your tongue and send a pulse.
 - **Voice chat support.** With **Plasmo Voice** or **Simple Voice Chat**, your voice and other players' voices create waves.
 - **Fully configurable.** Almost 40 options in-game.
@@ -77,7 +77,7 @@ The jar appears in `build/libs/`.
 
 - Без звука не видно ничего; каждый звук — эхо, чем громче, тем дальше.
 - Звук идёт только по воздуху — по коридорам, через проёмы, за углы, слабея на поворотах. Сквозь стены не проходит.
-- Круглая плавная волна, блоки и мобы — с настоящими текстурами в оттенках серого.
+- Круглая плавная волна; блоки, мобы с бронёй, сундуки, предметы и твоя рука — с настоящими текстурами в оттенках серого.
 - **V** — щелчок, **B** — эхо, **N** — слепота, **K** — настройки (почти 40).
 - Голосовой чат: Plasmo Voice и Simple Voice Chat.
 
