@@ -3,8 +3,18 @@
 </p>
 
 <p align="center">
-  <b>Fabric · Minecraft 1.21.11 · client-side</b><br>
-  <a href="https://modrinth.com/mod/echo-vision">Download on Modrinth</a>
+  <a href="https://modrinth.com/mod/echo-vision"><img src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/available/modrinth_vector.svg" height="48" alt="Available on Modrinth"></a>
+  <a href="https://www.curseforge.com/minecraft/mc-mods/echo-vision"><img src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/available/curseforge_vector.svg" height="48" alt="Available on CurseForge"></a>
+  <a href="https://fabricmc.net/"><img src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/supported/fabric_vector.svg" height="48" alt="Supported on Fabric"></a>
+  <a href="https://modrinth.com/mod/fabric-api"><img src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/requires/fabric-api_vector.svg" height="48" alt="Requires Fabric API"></a>
+</p>
+
+<p align="center">
+  <a href="https://modrinth.com/mod/echo-vision"><img src="https://img.shields.io/modrinth/dt/echo-vision?logo=modrinth&label=Modrinth&color=00AF5C" alt="Modrinth downloads"></a>
+  <a href="https://www.curseforge.com/minecraft/mc-mods/echo-vision"><img src="https://img.shields.io/curseforge/dt/1763292?logo=curseforge&label=CurseForge&color=F16436" alt="CurseForge downloads"></a>
+  <img src="https://img.shields.io/badge/Minecraft-1.21.11-62B47A" alt="Minecraft 1.21.11">
+  <img src="https://img.shields.io/badge/side-client-blue" alt="Client-side">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT license"></a>
 </p>
 
 **You are blind.** The world is pitch black. Every sound you hear — your own footsteps, a jump, a door, a zombie's groan, a friend talking in voice chat — sends out a wave that rolls through the air, around corners and down tunnels, and for a few seconds reveals the world in black and white.
