@@ -4,6 +4,7 @@ import com.dragonyx.echolocation.EchoMod;
 import com.dragonyx.echolocation.config.EchoConfig;
 import com.dragonyx.echolocation.echo.EchoClock;
 import com.dragonyx.echolocation.echo.EchoField;
+import com.dragonyx.echolocation.echo.EchoMaterials;
 import com.dragonyx.echolocation.echo.EchoStats;
 import com.mojang.blaze3d.pipeline.BlendFunction;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
@@ -41,8 +42,8 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
 /**
- * Рисует эхо в стиле сонара: по поверхностям бежит светящееся кольцо фронта волны,
- * а после него светятся и гаснут только контуры предметов — углы стен, рёбра столбов, края обрывов.
+ * Рисует эхо-зрение: открытые грани, до которых дошёл звук, проступают из тьмы своей текстурой
+ * в оттенках серого, а по ним бежит светящееся кольцо фронта волны.
  * <p>
  * Яркость считается в каждой вершине по её собственному расстоянию до источника,
  * поэтому фронт идёт по граням плавно, а не скачками по блокам.
@@ -87,8 +88,10 @@ public final class EchoRenderer {
 	private static BufferAllocator surfaceAllocator;
 	private static VertexConsumerProvider.Immediate surfaceImmediate;
 	private static VertexConsumer surface;
-	/** Множитель яркости контуров: в эхо-зрении они лишь подчёркивают поверхности. */
-	private static float lineGain = 1f;
+	/** Множитель яркости линий (значков источников): они лишь подчёркивают поверхности. */
+	private static final float LINE_GAIN = 0.45f;
+	/** Полуширина линий значков источников, блоков. */
+	private static final float HALF_WIDTH = 0.025f;
 
 	/** Отступ заливки и кольца от грани блока, чтобы не мерцать вместе с ней. */
 	private static final float EPS = 0.004f;
@@ -107,8 +110,12 @@ public final class EchoRenderer {
 	private static Matrix4f mat;
 	private static double camX, camY, camZ;
 	private static double now;
-	private static float dur, speed, brightness, halfWidth, ringWidth;
+	private static float dur, speed, brightness, ringWidth;
 	private static boolean flash;
+	/** Отражающая способность материала текущего блока (1 — без учёта материалов). */
+	private static float matGain = 1f;
+	/** Неровность края волны, блоков (0 — ровный круг). */
+	private static float noiseAmp;
 	/** Ширина кольца фронта на текущей грани, в единицах s. */
 	private static float band;
 
@@ -154,8 +161,6 @@ public final class EchoRenderer {
 		}
 		ClientWorld world = MinecraftClient.getInstance().world;
 		if (world == null) return;
-		boolean vision = cfg.style == EchoConfig.Style.ECHO_VISION;
-		lineGain = vision ? 0.45f : 1f;
 
 		Vec3d cam = ctx.worldState().cameraRenderState.pos;
 		camX = cam.x;
@@ -167,13 +172,14 @@ public final class EchoRenderer {
 		dur = cfg.echoDuration;
 		speed = cfg.soundSpeed;
 		brightness = cfg.brightness;
-		halfWidth = cfg.lineWidth * 0.5f;
 		ringWidth = cfg.ringWidth;
 		flash = cfg.wavefrontFlash;
+		matGain = 1f;
+		noiseAmp = cfg.waveNoise * 1.5f;
 
-		mat = ctx.matrices().peek().getPositionMatrix();
+		mat =ctx.matrices().peek().getPositionMatrix();
 		vc = immediate.getBuffer(LAYER);
-		surface = vision ? surfaceImmediate.getBuffer(SURFACE_LAYER) : null;
+		surface = surfaceImmediate.getBuffer(SURFACE_LAYER);
 
 		float farthest = 0f;
 		for (EchoField.BlockEcho be : field.blocks.values()) {
@@ -185,42 +191,30 @@ public final class EchoRenderer {
 			if (len > farthest) farthest = len;
 			// Блоки вне поля зрения не рисуем (конус чуть шире экрана, с запасом на размер блока).
 			if (!inView(rx + 0.5f, ry + 0.5f, rz + 0.5f, len, fwd, cosView)) continue;
+			if (cfg.materialEcho) {
+				refreshState(world, be);
+				matGain = be.material;
+			}
 
 			for (int f = 0; f < 6; f++) {
 				EchoField.Echo e = be.slots[f];
-				if (e == null || !lit(e)) continue;
-				boolean facing = facesCamera(f, rx, ry, rz);
-				// В эхо-зрении грань, повёрнутая от камеры, ничего не рисует (кроме контуров, если включены).
-				if (!facing && vision && !cfg.visionContours) continue;
+				// Грань, повёрнутая от камеры, не видна — её не рисуем.
+				if (e == null || !lit(e) || !facesCamera(f, rx, ry, rz)) continue;
 				int color = e.colorAt(now, dur);
 				setFace(f, rx, ry, rz);
 				beginFace(f, rx, ry, rz);
-				switch (cfg.style) {
-					case ECHO_VISION -> {
-						if (facing) surfaceFace(world, be, f, e, rx, ry, rz, color);
-						if (cfg.visionContours) faceEdges(e, f, be.edges[f], color);
-					}
-					case CONTOURS -> faceEdges(e, f, be.edges[f], color);
-					case GRID -> faceEdges(e, f, 0b1111, color);
-					case FILL -> { if (facing) fill(e, color, Math.max(0.05f, cfg.fillOpacity)); }
-				}
-				if (cfg.wavefrontRing && facing) ring(e, color);
+				surfaceFace(world, be, f, e, rx, ry, rz, color);
+				if (cfg.wavefrontRing) ring(e, color);
 			}
 
 			EchoField.Echo whole = be.slots[6];
 			if (whole != null && be.shape != null && lit(whole)) {
-				int color = whole.colorAt(now, dur);
 				beginFace(6, rx, ry, rz);
-				if (vision) {
-					surfaceWhole(world, be, whole, rx, ry, rz, color);
-				} else {
-					for (Box box : be.shape.getBoundingBoxes()) {
-						boxEdges(whole, rx, ry, rz, box, color);
-					}
-				}
+				surfaceWhole(world, be, whole, rx, ry, rz, whole.colorAt(now, dur));
 			}
 		}
 
+		matGain = 1f;
 		for (EchoField.SourceMark s : field.sources) {
 			double t = (now - s.start()) / EchoField.SOURCE_LIFE;
 			if (t < 0 || t > 1) continue;
@@ -234,7 +228,7 @@ public final class EchoRenderer {
 		updateReach(farthest);
 
 		long tDraw = EchoStats.ENABLED ? System.nanoTime() : 0;
-		if (surface != null) surfaceImmediate.draw();
+		surfaceImmediate.draw();
 		immediate.draw();
 		if (EchoStats.ENABLED) {
 			EchoStats.draw(System.nanoTime() - tDraw);
@@ -306,7 +300,7 @@ public final class EchoRenderer {
 
 	/** Грань светится хоть одной волной (с запасом: углы грани освещаются чуть раньше и позже центра). */
 	private static boolean lit(EchoField.Echo e) {
-		float slack = 2.5f / speed;
+		float slack = (2.5f + noiseAmp) / speed;
 		for (int k = 0; k < 2; k++) {
 			double age = now - e.arrival[k];
 			if (age >= -slack && age <= dur + slack) return true; // NaN не проходит
@@ -316,14 +310,25 @@ public final class EchoRenderer {
 
 	// ---------- эхо-зрение: модели блоков ----------
 
+	/**
+	 * Сверяет блок с миром после новой волны: блок мог смениться. Новый блок — модель соберётся заново,
+	 * и материал пересчитается.
+	 */
+	private static void refreshState(ClientWorld world, EchoField.BlockEcho be) {
+		if (be.state != null && !be.stale) return;
+		be.stale = false;
+		BlockState state = world.getBlockState(BlockPos.fromLong(be.pos));
+		if (state == be.state) return;
+		be.state = state;
+		be.quads = null;
+		be.material = EchoMaterials.reflectivity(state);
+	}
+
 	@SuppressWarnings("unchecked")
 	private static List<BakedQuad>[] quadsOf(ClientWorld world, EchoField.BlockEcho be) {
-		if (be.quads != null && !be.stale) return be.quads;
-		BlockState state = world.getBlockState(BlockPos.fromLong(be.pos));
-		be.stale = false;
-		// Блок тот же — модель уже собрана.
-		if (be.quads != null && state == be.state) return be.quads;
-		be.state = state;
+		refreshState(world, be);
+		if (be.quads != null) return be.quads;
+		BlockState state = be.state;
 		List<BakedQuad>[] out = new List[7];
 		for (int i = 0; i < 7; i++) out[i] = new ArrayList<>();
 		be.particle = null;
@@ -499,7 +504,47 @@ public final class EchoRenderer {
 			else { u = lz; v = ly; }
 			path = c[0] * (1 - u) * (1 - v) + c[1] * u * (1 - v) + c[2] * u * v + c[3] * (1 - u) * v;
 		}
-		return EchoField.effectiveDistance(euclid, path);
+		float d = EchoField.effectiveDistance(euclid, path);
+		if (noiseAmp > 0) d += noiseAmp * (2 * edgeNoise(e, k, px, py, pz) - 1);
+		return d;
+	}
+
+	// ---------- неровный край волны ----------
+
+	/** Частота шума: пятна размером в пару блоков. */
+	private static final float NOISE_FREQ = 0.43f;
+
+	/**
+	 * Плавный шум 0–1 в точке мира: у каждой волны свой узор (зерно — её источник), поэтому край
+	 * идёт неровными «языками», но одинаково на соседних гранях и без мерцания между кадрами.
+	 */
+	private static float edgeNoise(EchoField.Echo e, int k, float px, float py, float pz) {
+		float x = (float) (px + camX) * NOISE_FREQ, y = (float) (py + camY) * NOISE_FREQ, z = (float) (pz + camZ) * NOISE_FREQ;
+		int seed = Float.floatToIntBits(e.sx[k] * 0.071f) * 31 + Float.floatToIntBits(e.sy[k] * 0.071f) * 17
+			+ Float.floatToIntBits(e.sz[k] * 0.071f);
+		int x0 = (int) Math.floor(x), y0 = (int) Math.floor(y), z0 = (int) Math.floor(z);
+		float fx = smooth(x - x0), fy = smooth(y - y0), fz = smooth(z - z0);
+		float a = lerp(hash(x0, y0, z0, seed), hash(x0 + 1, y0, z0, seed), fx);
+		float b = lerp(hash(x0, y0 + 1, z0, seed), hash(x0 + 1, y0 + 1, z0, seed), fx);
+		float c = lerp(hash(x0, y0, z0 + 1, seed), hash(x0 + 1, y0, z0 + 1, seed), fx);
+		float d = lerp(hash(x0, y0 + 1, z0 + 1, seed), hash(x0 + 1, y0 + 1, z0 + 1, seed), fx);
+		return lerp(lerp(a, b, fy), lerp(c, d, fy), fz);
+	}
+
+	private static float hash(int x, int y, int z, int seed) {
+		int h = seed ^ x * 0x27d4eb2d ^ y * 0x165667b1 ^ z * 0x5bd1e995;
+		h ^= h >>> 15;
+		h *= 0x2c1b3c6d;
+		h ^= h >>> 12;
+		return (h & 0xFFFFFF) / (float) 0xFFFFFF;
+	}
+
+	private static float smooth(float t) {
+		return t * t * (3 - 2 * t);
+	}
+
+	private static float lerp(float a, float b, float t) {
+		return a + (b - a) * t;
 	}
 
 	/** Сколько блоков фронт волны k уже прошёл за точкой p (отрицательно — ещё не дошёл). */
@@ -514,7 +559,7 @@ public final class EchoRenderer {
 	 */
 	private static float pointLevel(EchoField.Echo e, float px, float py, float pz) {
 		float best = 0f;
-		float slack = 2.5f / speed;
+		float slack = (2.5f + noiseAmp) / speed;
 		for (int k = 0; k < 2; k++) {
 			// Волна уже погасла на всей грани (или ещё не дошла) — не считаем расстояния. NaN тоже отсеивается.
 			double age0 = now - e.arrival[k];
@@ -526,59 +571,14 @@ public final class EchoRenderer {
 				* EchoField.falloff(EchoField.loudnessDistance(d, euclid), e.range[k]) * e.base[k];
 			if (v > best) best = v;
 		}
-		return best * brightness;
+		return best * brightness * matGain;
 	}
 
 	private static float clamp01(float v) {
 		return v < 0 ? 0 : v > 1 ? 1 : v;
 	}
 
-	// ---------- контуры ----------
-
-	/** Рёбра грани по маске (биты в порядке SoundPropagator.TANGENTS). */
-	private static void faceEdges(EchoField.Echo e, int f, int mask, int color) {
-		if (mask == 0) return;
-		// Углы: 0-1 и 3-2 — рёбра по первой касательной оси, 0-3 и 1-2 — по второй.
-		float l0 = pointLevel(e, qx[0], qy[0], qz[0]);
-		float l1 = pointLevel(e, qx[1], qy[1], qz[1]);
-		float l2 = pointLevel(e, qx[2], qy[2], qz[2]);
-		float l3 = pointLevel(e, qx[3], qy[3], qz[3]);
-		if (l0 < 0.003f && l1 < 0.003f && l2 < 0.003f && l3 < 0.003f) return;
-		// Для граней по Y и Z касательные: (−U, +U, −V, +V), где U — первая ось, V — вторая.
-		// Ребро «−U» проходит через углы 0 и 3, «+U» — через 1 и 2, «−V» — через 0 и 1, «+V» — через 3 и 2.
-		if ((mask & 1) != 0) ribbon(0, 3, l0, l3, color);
-		if ((mask & 2) != 0) ribbon(1, 2, l1, l2, color);
-		if ((mask & 4) != 0) ribbon(0, 1, l0, l1, color);
-		if ((mask & 8) != 0) ribbon(3, 2, l3, l2, color);
-	}
-
-	private static void ribbon(int i, int j, float li, float lj, int color) {
-		line(qx[i], qy[i], qz[i], qx[j], qy[j], qz[j], li, lj, color);
-	}
-
-	/** 12 рёбер коробки из формы неполного блока. */
-	private static void boxEdges(EchoField.Echo e, float x, float y, float z, Box b, int color) {
-		float x0 = x + (float) b.minX, x1 = x + (float) b.maxX;
-		float y0 = y + (float) b.minY, y1 = y + (float) b.maxY;
-		float z0 = z + (float) b.minZ, z1 = z + (float) b.maxZ;
-		float[] l = new float[8];
-		for (int c = 0; c < 8; c++) {
-			float px = (c & 1) == 0 ? x0 : x1, py = (c & 2) == 0 ? y0 : y1, pz = (c & 4) == 0 ? z0 : z1;
-			l[c] = pointLevel(e, px, py, pz);
-		}
-		boolean any = false;
-		for (float v : l) any |= v >= 0.003f;
-		if (!any) return;
-		for (int c = 0; c < 8; c++) {
-			for (int bit = 1; bit <= 4; bit <<= 1) {
-				int d = c | bit;
-				if (d == c) continue;
-				float ax = (c & 1) == 0 ? x0 : x1, ay = (c & 2) == 0 ? y0 : y1, az = (c & 4) == 0 ? z0 : z1;
-				float bx = (d & 1) == 0 ? x0 : x1, by = (d & 2) == 0 ? y0 : y1, bz = (d & 4) == 0 ? z0 : z1;
-				line(ax, ay, az, bx, by, bz, l[c], l[d], color);
-			}
-		}
-	}
+	// ---------- линии ----------
 
 	/** Отрезок как лента, развёрнутая к камере, чуть подвинутая к ней, чтобы не утонуть в соседних гранях. */
 	private static void line(float ax, float ay, float az, float bx, float by, float bz, float la, float lb, int color) {
@@ -588,7 +588,7 @@ public final class EchoRenderer {
 		if (md < 1e-4f) return;
 		float dx = bx - ax, dy = by - ay, dz = bz - az;
 		// Ширина в мире, но не тоньше ~1.5 пикселя вдали.
-		float hw = Math.max(halfWidth, md * 0.0012f);
+		float hw = Math.max(HALF_WIDTH, md * 0.0012f);
 		float px = dy * mz - dz * my, py = dz * mx - dx * mz, pz = dx * my - dy * mx;
 		float pl = dist(px, py, pz);
 		if (pl < 1e-6f) return;
@@ -599,7 +599,7 @@ public final class EchoRenderer {
 		ax -= ax * pull; ay -= ay * pull; az -= az * pull;
 		bx -= bx * pull; by -= by * pull; bz -= bz * pull;
 
-		int ca = rgba(color, la * lineGain), cb = rgba(color, lb * lineGain);
+		int ca = rgba(color, la * LINE_GAIN), cb = rgba(color, lb * LINE_GAIN);
 		vertex(ax - px, ay - py, az - pz, ca);
 		vertex(ax + px, ay + py, az + pz, ca);
 		vertex(bx + px, by + py, bz + pz, cb);
@@ -608,24 +608,6 @@ public final class EchoRenderer {
 		vertex(bx - px, by - py, bz - pz, cb);
 	}
 
-	// ---------- заливка ----------
-
-	private static void fill(EchoField.Echo e, int color, float opacity) {
-		int[] c = new int[4];
-		boolean any = false;
-		for (int i = 0; i < 4; i++) {
-			float l = pointLevel(e, qx[i], qy[i], qz[i]) * opacity;
-			any |= l >= 0.003f;
-			c[i] = rgba(color, l);
-		}
-		if (!any) return;
-		vertex(qx[0], qy[0], qz[0], c[0]);
-		vertex(qx[1], qy[1], qz[1], c[1]);
-		vertex(qx[2], qy[2], qz[2], c[2]);
-		vertex(qx[0], qy[0], qz[0], c[0]);
-		vertex(qx[2], qy[2], qz[2], c[2]);
-		vertex(qx[3], qy[3], qz[3], c[3]);
-	}
 
 	// ---------- кольцо фронта волны ----------
 
@@ -642,7 +624,7 @@ public final class EchoRenderer {
 			if (Double.isNaN(e.arrival[k])) continue;
 			// Фронт далеко от центра грани — кольца на ней нет, углы можно не считать.
 			float atCenter = (float) ((now - e.arrival[k]) * speed);
-			if (atCenter < -1.5f || atCenter > ringWidth + 1.5f) continue;
+			if (atCenter < -1.5f - noiseAmp || atCenter > ringWidth + 1.5f + noiseAmp) continue;
 			// Быстрая проверка по углам (с запасом на изгиб фронта внутри грани).
 			float s0 = behindFront(e, k, qx[0], qy[0], qz[0]), s1 = behindFront(e, k, qx[1], qy[1], qz[1]);
 			float s2 = behindFront(e, k, qx[2], qy[2], qz[2]), s3 = behindFront(e, k, qx[3], qy[3], qz[3]);
@@ -651,7 +633,7 @@ public final class EchoRenderer {
 			if (max < -0.3f || min > ringWidth + 0.3f) continue;
 			// Кольцо тускнеет по мере того, как фронт уходит к пределу слышимости.
 			float front = (float) ((now - e.start[k]) * speed);
-			float strength = EchoField.falloff(front, e.range[k]) * e.base[k] * brightness * 1.3f;
+			float strength = EchoField.falloff(front, e.range[k]) * e.base[k] * brightness * matGain * 1.3f;
 			if (strength < 0.003f) continue;
 			int c = k == 0 ? color : e.color[1];
 

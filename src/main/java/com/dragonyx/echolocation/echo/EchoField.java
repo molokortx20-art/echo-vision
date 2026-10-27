@@ -161,13 +161,13 @@ public final class EchoField {
 		public final long pos;
 		/** 0–5 — грани по Direction.getId(), 6 — форма неполного блока целиком. */
 		public final Echo[] slots = new Echo[7];
-		/** Маски рёбер-контуров для граней 0–5. */
-		public final byte[] edges = new byte[6];
 		public VoxelShape shape;
 		/** Квадраты модели блока для эхо-зрения: [0–5] по сторонам, [6] — без стороны. */
 		public List<BakedQuad>[] quads;
 		/** Состояние блока, из которого собраны quads. */
 		public BlockState state;
+		/** Отражающая способность материала (см. EchoMaterials). */
+		public float material = 1f;
 		/** Пришла новая волна — блок мог измениться, перед отрисовкой сверить state. */
 		public boolean stale;
 		/** Текстура для формы блок-сущности, которую Better Block Entities вшил в мир (иначе null). */
@@ -201,11 +201,7 @@ public final class EchoField {
 			}
 			int f = r.face[i];
 			be.stale = true; // блок мог измениться с прошлой волны
-			if (f == 6) {
-				if (r.shape[i] != null) be.shape = r.shape[i];
-			} else {
-				be.edges[f] = r.edges[i];
-			}
+			if (f == 6 && r.shape[i] != null) be.shape = r.shape[i];
 			Echo e = be.slots[f];
 			if (e == null) e = be.slots[f] = new Echo();
 			int color = cfg.colorMode == EchoConfig.ColorMode.DISTANCE ? EchoColors.byDistance(d, range) : job.color;

@@ -37,23 +37,6 @@ public final class SoundPropagator {
 	/** Шесть граней: dx, dy, dz. Индекс совпадает с Direction.getId(). */
 	public static final int[][] FACES = {{0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}};
 	public static final byte WHOLE = 6;
-	/**
-	 * Касательные направления рёбер для каждой грани, в порядке битов маски рёбер.
-	 * Грани по Y: −X, +X, −Z, +Z; по Z: −X, +X, −Y, +Y; по X: −Z, +Z, −Y, +Y.
-	 */
-	public static final int[][][] TANGENTS = new int[6][][];
-
-	static {
-		int[][] y = {{-1, 0, 0}, {1, 0, 0}, {0, 0, -1}, {0, 0, 1}};
-		int[][] z = {{-1, 0, 0}, {1, 0, 0}, {0, -1, 0}, {0, 1, 0}};
-		int[][] x = {{0, 0, -1}, {0, 0, 1}, {0, -1, 0}, {0, 1, 0}};
-		TANGENTS[0] = y;
-		TANGENTS[1] = y;
-		TANGENTS[2] = z;
-		TANGENTS[3] = z;
-		TANGENTS[4] = x;
-		TANGENTS[5] = x;
-	}
 
 	static {
 		int n = 0;
@@ -117,7 +100,7 @@ public final class SoundPropagator {
 		dist[originIdx] = 0;
 		buckets[0].add(originIdx);
 		if (originKind == SOLID || originKind == PARTIAL) {
-			out.addBlock(BlockPos.asLong(ox, oy, oz), WHOLE, 0f, shapeAt(world, mpos.set(ox, oy, oz)), (byte) 0, originIdx);
+			out.addBlock(BlockPos.asLong(ox, oy, oz), WHOLE, 0f, shapeAt(world, mpos.set(ox, oy, oz)), originIdx);
 		}
 
 		int visited = 0;
@@ -140,7 +123,7 @@ public final class SoundPropagator {
 
 				if (k == AIR || k == PARTIAL) {
 					if (k == PARTIAL && !isOrigin) {
-						out.addBlock(BlockPos.asLong(wx, wy, wz), WHOLE, d / 10f, shapeAt(world, mpos.set(wx, wy, wz)), (byte) 0, idx);
+						out.addBlock(BlockPos.asLong(wx, wy, wz), WHOLE, d / 10f, shapeAt(world, mpos.set(wx, wy, wz)), idx);
 					}
 					out.addAir(BlockPos.asLong(wx, wy, wz), d / 10f);
 				}
@@ -163,8 +146,7 @@ public final class SoundPropagator {
 						if (!fromSolid) {
 							// Поверхность стены, к которой подошёл звук.
 							int faceId = faceTowards(-st[0], -st[1], -st[2]);
-							byte edges = edgeMask(world, chunks, mpos, ox, oy, oz, half, side, faceId, nx, ny, nz, lx, ly, lz, gen, wall10);
-							out.addBlock(BlockPos.asLong(wx + st[0], wy + st[1], wz + st[2]), (byte) faceId, d / 10f + 0.5f, null, edges, idx);
+							out.addBlock(BlockPos.asLong(wx + st[0], wy + st[1], wz + st[2]), (byte) faceId, d / 10f + 0.5f, null, idx);
 						}
 						if (!penetrate) continue;
 						nd = d + cross[nIdx];
@@ -226,42 +208,6 @@ public final class SoundPropagator {
 				out.corners[i * 4 + c] = best + CELL_TO_CORNER;
 			}
 		}
-	}
-
-	/**
-	 * Какие из четырёх рёбер грани — настоящий контур (угол), а какие лежат внутри ровной поверхности.
-	 * Ребро внутреннее, если сосед по касательной тоже твёрдый и его такая же грань открыта.
-	 * Каждый угол принадлежит двум граням; рисует его только та, у которой ось нормали меньше оси касательной.
-	 */
-	private byte edgeMask(World world, ChunkLookup chunks, BlockPos.Mutable mpos, int ox, int oy, int oz, int half, int side,
-						  int faceId, int sx, int sy, int sz, int ax, int ay, int az, int gen, int wall10) {
-		int faceAxis = axisOf(faceId);
-		int[][] tangents = TANGENTS[faceId];
-		byte mask = 0;
-		for (int i = 0; i < 4; i++) {
-			int[] t = tangents[i];
-			int tangentAxis = t[0] != 0 ? 0 : t[1] != 0 ? 1 : 2;
-			if (faceAxis > tangentAxis) continue;
-			int nx = sx + t[0], ny = sy + t[1], nz = sz + t[2];
-			int px = ax + t[0], py = ay + t[1], pz = az + t[2];
-			boolean internal = false;
-			if (inside(nx, ny, nz, side) && inside(px, py, pz, side)) {
-				byte n = kindAt(world, chunks, mpos, ox, oy, oz, half, nx, ny, nz, index(nx, ny, nz, side), gen, wall10);
-				byte p = kindAt(world, chunks, mpos, ox, oy, oz, half, px, py, pz, index(px, py, pz, side), gen, wall10);
-				internal = n == SOLID && p != SOLID && p != BARRIER;
-			}
-			if (!internal) mask |= (byte) (1 << i);
-		}
-		return mask;
-	}
-
-	/** Ось нормали грани: 0 = X, 1 = Y, 2 = Z. */
-	private static int axisOf(int faceId) {
-		return faceId < 2 ? 1 : faceId < 4 ? 2 : 0;
-	}
-
-	private static boolean inside(int x, int y, int z, int side) {
-		return x > 0 && y > 0 && z > 0 && x < side - 1 && y < side - 1 && z < side - 1;
 	}
 
 	private boolean diagonalOpen(World world, ChunkLookup chunks, BlockPos.Mutable mpos, int ox, int oy, int oz, int half, int side,

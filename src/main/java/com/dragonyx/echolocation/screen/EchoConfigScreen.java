@@ -52,23 +52,32 @@ public final class EchoConfigScreen extends GameOptionsScreen {
 			slider("rangeMultiplier", 1, 40, () -> Math.round(c.rangeMultiplier * 10), v -> c.rangeMultiplier = v / 10f, v -> fmt(v / 10f)),
 			slider("maxRange", 8, 96, () -> Math.round(c.maxRange), v -> c.maxRange = v, Integer::toString),
 			bool("wallPenetration", c.wallPenetration, v -> c.wallPenetration = v),
-			slider("wallAbsorption", 2, 100, () -> Math.round(c.wallAbsorption * 2), v -> c.wallAbsorption = v / 2f, v -> fmt(v / 2f))
+			slider("wallAbsorption", 2, 100, () -> Math.round(c.wallAbsorption * 2), v -> c.wallAbsorption = v / 2f, v -> fmt(v / 2f)),
+			bool("materialEcho", c.materialEcho, v -> c.materialEcho = v)
+		);
+
+		this.body.addHeader(Text.translatable("screen.echovision.tab.kinds"));
+		this.body.addAll(
+			scale("scaleSteps", () -> c.scaleSteps, v -> c.scaleSteps = v),
+			scale("scaleMining", () -> c.scaleMining, v -> c.scaleMining = v),
+			scale("scalePlacing", () -> c.scalePlacing, v -> c.scalePlacing = v),
+			scale("scaleVoice", () -> c.scaleVoice, v -> c.scaleVoice = v),
+			scale("scaleOther", () -> c.scaleOther, v -> c.scaleOther = v)
 		);
 
 		this.body.addHeader(Text.translatable("screen.echovision.tab.look"));
+		this.body.addWidgetEntry(
+			cycle("colorMode", EchoConfig.ColorMode.values(), c.colorMode, v -> c.colorMode = v).createWidget(this.gameOptions),
+			ButtonWidget.builder(Text.translatable("screen.echovision.color.button"),
+				b -> { if (this.client != null) this.client.setScreen(new EchoColorScreen(this)); }).width(150).build());
 		this.body.addAll(
-			cycle("style", EchoConfig.Style.values(), c.style, v -> c.style = v),
-			bool("visionContours", c.visionContours, v -> c.visionContours = v),
-			cycle("colorMode", EchoConfig.ColorMode.values(), c.colorMode, v -> c.colorMode = v),
-			slider("hue", 0, 359, () -> c.hue, v -> c.hue = v, Integer::toString),
-			slider("saturation", 0, 100, () -> Math.round(c.saturation * 100), v -> c.saturation = v / 100f, v -> v + "%"),
+			slider("waveNoise", 0, 100, () -> Math.round(c.waveNoise * 100), v -> c.waveNoise = v / 100f,
+				v -> v == 0 ? ScreenTexts.OFF.getString() : v + "%"),
 			slider("echoDuration", 3, 200, () -> Math.round(c.echoDuration * 10), v -> c.echoDuration = v / 10f, v -> fmt(v / 10f)),
 			slider("brightness", 1, 60, () -> Math.round(c.brightness * 20), v -> c.brightness = v / 20f, v -> fmt(v / 20f)),
-			slider("lineWidth", 1, 60, () -> Math.round(c.lineWidth * 200), v -> c.lineWidth = v / 200f, v -> fmt(v / 200f)),
 			bool("wavefrontRing", c.wavefrontRing, v -> c.wavefrontRing = v),
 			slider("ringWidth", 1, 40, () -> Math.round(c.ringWidth * 10), v -> c.ringWidth = v / 10f, v -> fmt(v / 10f)),
 			bool("wavefrontFlash", c.wavefrontFlash, v -> c.wavefrontFlash = v),
-			slider("fillOpacity", 0, 100, () -> Math.round(c.fillOpacity * 100), v -> c.fillOpacity = v / 100f, v -> v + "%"),
 			bool("showEntities", c.showEntities, v -> c.showEntities = v),
 			bool("showSources", c.showSources, v -> c.showSources = v),
 			slider("maxBlocks", 1, 200, () -> c.maxBlocks / 1000, v -> c.maxBlocks = v * 1000, v -> (v * 1000) + "")
@@ -125,6 +134,15 @@ public final class EchoConfigScreen extends GameOptionsScreen {
 			new SimpleOption.ValidatingIntSliderCallbacks(min, max, true),
 			value, v -> set.accept(v));
 	}
+
+	/** Множитель дальности по типу звука: 0–200 %, шаг 5 %. */
+	private static SimpleOption<Integer> scale(String key, FloatSupplier get, FloatConsumer set) {
+		return slider(key, 0, 40, () -> Math.round(get.get() * 20), v -> set.accept(v / 20f), v -> (v * 5) + "%");
+	}
+
+	private interface FloatSupplier { float get(); }
+
+	private interface FloatConsumer { void accept(float v); }
 
 	private static <E extends Enum<E>> SimpleOption<E> cycle(String key, E[] values, E value, Consumer<E> set) {
 		Codec<E> codec = Codec.INT.xmap(i -> values[Math.max(0, Math.min(values.length - 1, i))], Enum::ordinal);

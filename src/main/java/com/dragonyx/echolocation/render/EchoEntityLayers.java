@@ -72,10 +72,9 @@ public final class EchoEntityLayers {
 		return MAX_LEVEL * (step + 1) / STEPS;
 	}
 
-	/** Эхо-зрение включено. */
+	/** Эхо включено. */
 	public static boolean visionStyle() {
-		EchoConfig cfg = EchoConfig.get();
-		return cfg.echoEnabled && cfg.style == EchoConfig.Style.ECHO_VISION;
+		return EchoConfig.get().echoEnabled;
 	}
 
 	/** Начало отрисовки объекта с яркостью эха {@code level}; возвращает прежнее значение для {@link #end}. */

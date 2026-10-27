@@ -23,12 +23,6 @@ public final class EchoConfig {
 
 	public enum ColorMode { SINGLE, CATEGORY, DISTANCE }
 
-	/**
-	 * ECHO_VISION — поверхности с текстурой в оттенках серого и линиями деталей,
-	 * CONTOURS — только углы и рёбра предметов, GRID — сетка всех граней, FILL — залитые грани.
-	 */
-	public enum Style { ECHO_VISION, CONTOURS, GRID, FILL }
-
 	// Основное
 	public boolean echoEnabled = true;
 	public boolean blindness = true;
@@ -50,15 +44,15 @@ public final class EchoConfig {
 	// Вид
 	public float echoDuration = 3.0f;
 	public float brightness = 1.0f;
-	public float fillOpacity = 0.25f;
-	public float lineWidth = 0.05f;
-	public Style style = Style.ECHO_VISION;
-	/** Белые контуры углов и рёбер поверх эхо-зрения. */
-	public boolean visionContours = false;
 	public ColorMode colorMode = ColorMode.SINGLE;
-	/** Оттенок (0–359) и насыщенность (0 — белый) цвета эха в режиме «один цвет». */
+	/** Оттенок (0–359), насыщенность (0 — белый) и яркость цвета эха в режиме «один цвет». */
 	public int hue = 190;
 	public float saturation = 0f;
+	public float colorValue = 1f;
+	/** Материалы отражают по-разному: камень и металл ярче, шерсть, листва и земля тусклее. */
+	public boolean materialEcho = true;
+	/** Неровность края волны, 0 — ровный. */
+	public float waveNoise = 0f;
 	/** Светящееся кольцо фронта волны, бегущее по поверхностям. */
 	public boolean wavefrontRing = true;
 	/** Ширина хвоста кольца, блоков. */
@@ -85,6 +79,12 @@ public final class EchoConfig {
 	public boolean catVoice = true;
 	/** Прыжки и приземления (в ванилле почти беззвучные) тоже дают волну. */
 	public boolean movementEcho = true;
+	/** Множители дальности эха по типу звука (см. SoundKind). */
+	public float scaleSteps = 1f;
+	public float scaleMining = 1f;
+	public float scalePlacing = 1f;
+	public float scaleVoice = 1f;
+	public float scaleOther = 1f;
 
 	// Голосовой чат (Simple Voice Chat)
 	/** Голос — свой микрофон и речь других игроков — тоже рождает волну. */
@@ -99,7 +99,7 @@ public final class EchoConfig {
 	private static final int CURRENT_VERSION = 3;
 
 	public int baseColor() {
-		return java.awt.Color.HSBtoRGB(hue / 360f, saturation, 1f) & 0xFFFFFF;
+		return java.awt.Color.HSBtoRGB(hue / 360f, saturation, colorValue) & 0xFFFFFF;
 	}
 
 	public static EchoConfig get() {
@@ -149,9 +149,8 @@ public final class EchoConfig {
 			pulseRange = 22.0f;
 		}
 		if (version < 3) {
-			// v3: звук идёт только по воздуху (туннели, проёмы), без лишних контуров поверх эхо-зрения.
+			// v3: звук идёт только по воздуху (туннели, проёмы).
 			wallPenetration = false;
-			visionContours = false;
 		}
 		version = CURRENT_VERSION;
 	}
@@ -165,14 +164,18 @@ public final class EchoConfig {
 		wallAbsorption = clamp(wallAbsorption, 1, 50);
 		echoDuration = clamp(echoDuration, 0.3f, 20);
 		brightness = clamp(brightness, 0.05f, 3);
-		fillOpacity = clamp(fillOpacity, 0, 1);
-		lineWidth = clamp(lineWidth, 0.005f, 0.3f);
 		maxBlocks = Math.max(1000, Math.min(200000, maxBlocks));
 		pulseRange = clamp(pulseRange, 4, 96);
 		pulseCooldown = clamp(pulseCooldown, 0, 10);
-		if (style == null) style = Style.ECHO_VISION;
 		hue = Math.floorMod(hue, 360);
 		saturation = clamp(saturation, 0, 1);
+		colorValue = clamp(colorValue, 0.15f, 1);
+		waveNoise = clamp(waveNoise, 0, 1);
+		scaleSteps = clamp(scaleSteps, 0, 2);
+		scaleMining = clamp(scaleMining, 0, 2);
+		scalePlacing = clamp(scalePlacing, 0, 2);
+		scaleVoice = clamp(scaleVoice, 0, 2);
+		scaleOther = clamp(scaleOther, 0, 2);
 		ringWidth = clamp(ringWidth, 0.1f, 4);
 		if (colorMode == null) colorMode = ColorMode.SINGLE;
 		voiceThreshold = clamp(voiceThreshold, -70, -5);

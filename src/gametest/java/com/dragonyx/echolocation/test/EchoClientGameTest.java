@@ -4,6 +4,7 @@ import com.dragonyx.echolocation.config.EchoConfig;
 import com.dragonyx.echolocation.echo.EchoEngine;
 import com.dragonyx.echolocation.echo.EchoField;
 import com.dragonyx.echolocation.echo.VoiceEchoes;
+import com.dragonyx.echolocation.screen.EchoColorScreen;
 import com.dragonyx.echolocation.screen.EchoConfigScreen;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.loader.api.FabricLoader;
@@ -185,19 +186,44 @@ public final class EchoClientGameTest implements FabricClientGameTest {
 			}
 			context.runOnClient(client -> client.options.setPerspective(net.minecraft.client.option.Perspective.FIRST_PERSON));
 
+			// Неровный край волны и шерстяной пол перед игроком (шерсть глушит эхо).
+			sp.getServer().runCommand("effect clear @a minecraft:glowing");
+			sp.getServer().runCommand("execute as @p at @s run fill ~-1 ~-1 ~-2 ~1 ~-1 ~-4 minecraft:white_wool");
+			context.runOnClient(client -> EchoConfig.get().waveNoise = 1f);
+			context.waitTicks(80);
+			context.runOnClient(client -> EchoEngine.INSTANCE.pulse());
+			context.waitTicks(4);
+			shot(context, "17_wave_noise");
+			context.waitTicks(4);
+			shot(context, "17b_wave_noise_later");
+			context.waitTicks(12);
+			shot(context, "17c_wool_floor_dampened");
+			context.runOnClient(client -> EchoConfig.get().waveNoise = 0f);
+
 			context.runOnClient(client -> {
-				EchoConfig.get().style = EchoConfig.Style.GRID;
 				EchoConfig.get().colorMode = EchoConfig.ColorMode.DISTANCE;
 				EchoEngine.INSTANCE.reset();
 			});
 			context.waitTicks(25);
 			context.runOnClient(client -> EchoEngine.INSTANCE.pulse());
 			context.waitTicks(8);
-			shot(context, "07_grid_distance_colors");
+			shot(context, "07_distance_colors");
 
 			context.setScreen(() -> new EchoConfigScreen(null));
 			context.waitTicks(5);
 			shot(context, "08_config_screen");
+			double cx = context.computeOnClient(client -> client.getWindow().getWidth() / 2.0);
+			double cy = context.computeOnClient(client -> client.getWindow().getHeight() / 2.0);
+			context.getInput().setCursorPos(cx, cy);
+			context.getInput().scroll(-14);
+			context.waitTicks(5);
+			shot(context, "08a_config_kinds_look");
+			context.getInput().scroll(-6);
+			context.waitTicks(5);
+			shot(context, "08a2_config_look");
+			context.setScreen(() -> new EchoColorScreen(null));
+			context.waitTicks(5);
+			shot(context, "08b_color_screen");
 			context.setScreen(() -> null);
 			context.runOnClient(client -> EchoConfig.reset());
 		}

@@ -68,7 +68,7 @@ public final class EchoEngine {
 		}
 		if (!(volume > 0.001f)) return;
 
-		emit(client, sound.getX(), sound.getY(), sound.getZ(), volume, sound.getCategory(), true);
+		emit(client, sound.getX(), sound.getY(), sound.getZ(), volume, sound.getCategory(), SoundKind.of(sound.getId()), true);
 	}
 
 	/** Прыжок или приземление (см. {@link MovementEchoes}), в потоке клиента. */
@@ -77,7 +77,7 @@ public final class EchoEngine {
 		MinecraftClient client = MinecraftClient.getInstance();
 		if (client.world == null || client.player == null || !categoryEnabled(cfg, category)) return;
 		if (DEBUG) EchoMod.LOGGER.info("Movement at {} {} {}, volume {}", x, y, z, volume);
-		emit(client, x, y, z, volume, category, true);
+		emit(client, x, y, z, volume, category, SoundKind.STEP, true);
 	}
 
 	/** Голос из голосового чата (уже в потоке клиента). */
@@ -86,14 +86,18 @@ public final class EchoEngine {
 		MinecraftClient client = MinecraftClient.getInstance();
 		if (!cfg.echoEnabled || client.world == null || client.player == null) return;
 		if (DEBUG) EchoMod.LOGGER.info("Voice at {} {} {}, volume {}", x, y, z, volume);
-		emit(client, x, y, z, volume, SoundCategory.VOICE, false);
+		emit(client, x, y, z, volume, SoundCategory.VOICE, SoundKind.VOICE, false);
 	}
 
-	/** Звук громкостью volume → волна. Чем громче, тем дальше (в пределах maxRange). */
-	private void emit(MinecraftClient client, double x, double y, double z, float volume, SoundCategory category, boolean dedupe) {
+	/**
+	 * Звук громкостью volume → волна. Чем громче, тем дальше (в пределах maxRange);
+	 * у каждого типа звука свой множитель дальности.
+	 */
+	private void emit(MinecraftClient client, double x, double y, double z, float volume, SoundCategory category,
+					  SoundKind kind, boolean dedupe) {
 		EchoConfig cfg = EchoConfig.get();
 		float range = Math.min(cfg.maxRange, Math.max(3f,
-			cfg.baseRange * (float) Math.sqrt(Math.min(4f, Math.max(0.05f, volume))) * cfg.rangeMultiplier));
+			cfg.baseRange * (float) Math.sqrt(Math.min(4f, Math.max(0.05f, volume))) * cfg.rangeMultiplier * kind.scale(cfg)));
 		// Звук, который до нас никак не дойдёт, не считаем.
 		if (client.player.squaredDistanceTo(x, y, z) > (range * 1.5 + 8) * (range * 1.5 + 8)) return;
 

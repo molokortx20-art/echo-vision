@@ -1,3 +1,11 @@
+## Echo Vision 1.0.4
+
+- Only echo vision is left: the Contours, Block grid and Filled faces styles and "Contours over echo vision" are removed — they showed too much through walls. Mobs are no longer outlined with the glowing effect (it was visible through walls); they are always drawn in the echo style. Sound tracing is a bit lighter as a result.
+- Echo color picker: a palette with hue, saturation and brightness plus a HEX field (Settings → Look → Echo color…).
+- Echo range per sound type: separate sliders for steps and jumps, mining, placing blocks, voice and other sounds (0–200 %).
+- Materials dampen echo: stone, metal and glass reflect brightly, wood a bit less, dirt and sand are muffled, wool, leaves, snow and moss swallow most of the echo. Can be turned off.
+- Optional uneven wave edge: the wavefront breaks into soft irregular tongues instead of a perfect circle (off by default).
+
 ## Echo Vision 1.0.3
 
 - Much better FPS while blind (with Sodium): the black world beyond the farthest echo is no longer rendered at all, so blindness now costs less than normal play.
