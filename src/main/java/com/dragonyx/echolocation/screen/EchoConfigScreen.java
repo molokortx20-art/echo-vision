@@ -44,6 +44,8 @@ public final class EchoConfigScreen extends Screen {
 	private int panelW, rowW;
 	private TextFieldWidget presetName;
 	private boolean confirmReset;
+	/** Режим удаления пресетов (корзина над пресетами). */
+	private boolean deleting;
 	/** Вид прямо сейчас — по нему подсвечивается совпадающий пресет. */
 	private EchoLook currentLook = EchoLook.of(EchoConfig.get());
 
@@ -112,19 +114,29 @@ public final class EchoConfigScreen extends Screen {
 
 	private void look(DirectionalLayoutWidget col) {
 		EchoConfig c = EchoConfig.get();
-		col.add(new Header(rowW, Text.translatable(S + "presets")));
+		// Заголовок с корзиной: она включает режим удаления — нажатый пресет удаляется.
+		DirectionalLayoutWidget head = col.add(DirectionalLayoutWidget.horizontal().spacing(3));
+		head.add(new Header(rowW - 21, Text.translatable(deleting ? S + "preset.delete_hint" : S + "presets")));
+		head.add(new IconButton(18, Icon.TRASH, Text.translatable(S + "preset.delete"), () -> {
+			deleting = !deleting;
+			clearAndInit();
+		}, () -> deleting));
+
 		int half = (rowW - 3) / 2;
 		DirectionalLayoutWidget row = null;
-		for (int i = 0; i < EchoPreset.BUILT_IN.size(); i++) {
-			EchoPreset p = EchoPreset.BUILT_IN.get(i);
-			if (i % 2 == 0) row = col.add(DirectionalLayoutWidget.horizontal().spacing(3));
-			row.add(presetCard(half, Text.translatable("preset.echovision." + p.name), p));
+		int n = 0;
+		for (EchoPreset p : EchoPreset.BUILT_IN) {
+			if (c.hiddenPresets.contains(p.name)) continue;
+			if (n++ % 2 == 0) row = col.add(DirectionalLayoutWidget.horizontal().spacing(3));
+			row.add(presetCard(half, Text.translatable("preset.echovision." + p.name), p, () -> c.hiddenPresets.add(p.name)));
 		}
 		for (EchoPreset p : c.userPresets) {
-			DirectionalLayoutWidget r = col.add(DirectionalLayoutWidget.horizontal().spacing(3));
-			r.add(presetCard(rowW - 23, Text.literal(p.name), p));
-			r.add(new IconButton(20, Icon.TRASH, Text.translatable(S + "preset.delete"), () -> {
-				c.userPresets.remove(p);
+			if (n++ % 2 == 0) row = col.add(DirectionalLayoutWidget.horizontal().spacing(3));
+			row.add(presetCard(half, Text.literal(p.name), p, () -> c.userPresets.remove(p)));
+		}
+		if (!c.hiddenPresets.isEmpty()) {
+			col.add(new FlatButton(rowW, () -> Text.translatable(S + "preset.restore"), EchoWidgets.MUTED, () -> {
+				c.hiddenPresets.clear();
 				EchoConfig.save();
 				clearAndInit();
 			}));
@@ -144,8 +156,7 @@ public final class EchoConfigScreen extends Screen {
 		col.add(new Header(rowW, Text.translatable(S + "surface")));
 		col.add(percent("textureAmount", 100, () -> c.textureAmount, v -> c.textureAmount = v));
 		col.add(percent("fillAmount", 100, () -> c.fillAmount, v -> c.fillAmount = v));
-		col.add(percent("edgeGlow", 200, () -> c.edgeGlow, v -> c.edgeGlow = v));
-		col.add(slider("edgeWidth", 1, 20, () -> Math.round(c.edgeWidth * 100), v -> c.edgeWidth = v / 100f, v -> unit("blocks", fmt(v / 100f))));
+		col.add(percent("mottle", 100, () -> c.mottle, v -> c.mottle = v));
 		col.add(percent("detailLines", 200, () -> c.detailLines, v -> c.detailLines = v));
 		col.add(slider("brightness", 1, 60, () -> Math.round(c.brightness * 20), v -> c.brightness = v / 20f, v -> fmt(v / 20f)));
 		col.add(percent("distanceFade", 100, () -> c.distanceFade, v -> c.distanceFade = v));
@@ -246,12 +257,17 @@ public final class EchoConfigScreen extends Screen {
 		return new Toggle(rowW, Text.translatable(P + key), get, set, this::lookChanged);
 	}
 
-	private PresetCard presetCard(int w, Text name, EchoPreset p) {
+	/** remove — как убрать пресет корзиной: свой удаляется, встроенный скрывается. */
+	private PresetCard presetCard(int w, Text name, EchoPreset p, Runnable remove) {
 		return new PresetCard(w, name, p.look.echoColor, p.look.lineColor, () -> p.look.equals(currentLook), () -> {
 			p.look.applyTo(EchoConfig.get());
 			EchoConfig.get().preset = p.name;
 			EchoConfig.save();
 			EchoPreview.changed();
+			clearAndInit();
+		}, () -> deleting, () -> {
+			remove.run();
+			EchoConfig.save();
 			clearAndInit();
 		});
 	}

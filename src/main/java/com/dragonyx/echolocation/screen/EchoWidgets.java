@@ -393,40 +393,54 @@ final class EchoWidgets {
 		}
 	}
 
-	/** Карточка пресета: название и два образца цвета; выбранная обведена. */
+	/**
+	 * Карточка пресета: название и два образца цвета; выбранная обведена. В режиме удаления (корзина
+	 * над пресетами) карточки красные и нажатие удаляет пресет.
+	 */
 	static final class PresetCard extends PressableWidget {
 		private final int surface, line;
-		private final Supplier<Boolean> selected;
-		private final Runnable apply;
+		private final Supplier<Boolean> selected, deleting;
+		private final Runnable apply, delete;
 
-		PresetCard(int width, Text name, int surface, int line, Supplier<Boolean> selected, Runnable apply) {
+		PresetCard(int width, Text name, int surface, int line, Supplier<Boolean> selected, Runnable apply,
+				   Supplier<Boolean> deleting, Runnable delete) {
 			super(0, 0, width, ROW, name);
 			this.surface = surface;
 			this.line = line;
 			this.selected = selected;
 			this.apply = apply;
+			this.deleting = deleting;
+			this.delete = delete;
 		}
 
 		@Override
 		public void onPress(AbstractInput input) {
-			apply.run();
+			if (deleting.get()) {
+				delete.run();
+			} else {
+				apply.run();
+			}
 		}
 
 		@Override
 		protected void drawIcon(DrawContext ctx, int mouseX, int mouseY, float delta) {
 			int x = getX(), y = getY();
-			boolean sel = selected.get();
-			ctx.fill(x, y, x + width, y + height, sel ? 0x4033B5E6 : bg(this));
-			if (sel) {
-				ctx.fill(x, y, x + width, y + 1, ACCENT);
-				ctx.fill(x, y + height - 1, x + width, y + height, ACCENT);
-				ctx.fill(x, y, x + 1, y + height, ACCENT);
-				ctx.fill(x + width - 1, y, x + width, y + height, ACCENT);
+			boolean del = deleting.get();
+			boolean sel = !del && selected.get();
+			int frame = del ? 0xFFFF6B6B : ACCENT;
+			ctx.fill(x, y, x + width, y + height, del ? (isHovered() ? 0x66E04848 : 0x33E04848) : sel ? 0x4033B5E6 : bg(this));
+			if (sel || del && isHovered()) {
+				ctx.fill(x, y, x + width, y + 1, frame);
+				ctx.fill(x, y + height - 1, x + width, y + height, frame);
+				ctx.fill(x, y, x + 1, y + height, frame);
+				ctx.fill(x + width - 1, y, x + width, y + height, frame);
 			}
 			int sy = y + 6;
 			ctx.fill(x + 5, sy, x + 13, sy + 8, 0xFF000000 | surface);
 			ctx.fill(x + 13, sy, x + 17, sy + 8, 0xFF000000 | line);
-			text(ctx, fit(getMessage(), width - 26), x + 21, y + (height - 8) / 2, sel ? 0xFFFFFFFF : TEXT);
+			int right = del ? 14 : 4;
+			text(ctx, fit(getMessage(), width - 21 - right), x + 21, y + (height - 8) / 2, sel ? 0xFFFFFFFF : TEXT);
+			if (del) Icon.CLOSE.draw(ctx, x + width - 13, y + (height - 9) / 2, 0xFFFF8A8A);
 		}
 
 		@Override

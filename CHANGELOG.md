@@ -2,7 +2,8 @@
 
 - New settings screen: a panel on the left while the world stays visible on the right, so every change shows up live (the game is not paused; a silent preview click repeats every couple of seconds, can be turned off). Tabs, sliders with values, switches, icon buttons (click, preview, close).
 - Look presets: Echo vision (default), Sonar, Blueprint, Night vision, Thermal — one click to apply. Save your own look as a preset under any name, overwrite or delete it.
-- New look options: surface color and a separate line/ring color, texture amount vs. flat color fill, corner outlines drawn right on the surfaces (with width), detail lines strength, fade with distance. Creatures and items follow the same look.
+- New look options: surface color and a separate line/ring color, texture amount vs. flat color fill, soft mottling on surfaces, detail lines strength, fade with distance. Creatures and items follow the same look. Texture frames at block edges no longer draw lines, so walls are not ruled into a block grid.
+- Trash button above the presets: turn it on and click a preset to delete it (built-in ones are hidden and can be restored).
 - Only echo vision is left: the Contours, Block grid and Filled faces styles and "Contours over echo vision" are removed — they showed too much through walls. Mobs are no longer outlined with the glowing effect (it was visible through walls); they are always drawn in the echo style.
 - Color picker: palette with hue, saturation and brightness, ready-made swatches and a HEX field.
 - Echo range per sound type: separate sliders for steps and jumps, mining, placing blocks, voice and other sounds (0–200 %).

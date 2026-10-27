@@ -31,48 +31,45 @@ public final class EchoPreset {
 		return new EchoLook();
 	}
 
-	/** Сонар: тёмно-синие поверхности, яркие голубые контуры углов, мягкий неровный край волны. */
+	/** Сонар: тёмно-синие поверхности в мягких светлых разводах, голубые линии деталей, неровный край волны. */
 	private static EchoLook sonar() {
 		EchoLook l = new EchoLook();
 		l.echoColor = 0x33D1FF;
 		l.lineColor = 0x5FE0FF;
-		l.textureAmount = 0.12f;
-		l.fillAmount = 0.55f;
-		l.edgeGlow = 1.1f;
-		l.edgeWidth = 0.035f;
-		l.detailLines = 0.7f;
+		l.textureAmount = 0.1f;
+		l.fillAmount = 0.6f;
+		l.mottle = 0.75f;
+		l.detailLines = 1.1f;
 		l.distanceFade = 0.45f;
-		l.waveNoise = 0.8f;
-		l.ringWidth = 0.9f;
+		l.waveNoise = 0.9f;
+		l.ringWidth = 1.2f;
 		l.wavefrontFlash = false;
-		l.brightness = 1.1f;
+		l.brightness = 1.2f;
 		l.echoDuration = 3.5f;
 		return l;
 	}
 
-	/** Чертёж: почти без текстуры, белые линии углов на синем. */
+	/** Чертёж: без текстуры, белые линии деталей на ровном синем. */
 	private static EchoLook blueprint() {
 		EchoLook l = new EchoLook();
 		l.echoColor = 0x2A5BD7;
 		l.lineColor = 0xEAF2FF;
 		l.textureAmount = 0f;
-		l.fillAmount = 0.35f;
-		l.edgeGlow = 1.3f;
-		l.edgeWidth = 0.03f;
-		l.detailLines = 0.25f;
+		l.fillAmount = 0.4f;
+		l.detailLines = 1.4f;
 		l.distanceFade = 0.3f;
 		l.ringWidth = 0.5f;
 		return l;
 	}
 
-	/** Прибор ночного видения: зелёный, с текстурой и мягким затемнением вдали. */
+	/** Прибор ночного видения: зелёный, с текстурой, лёгкими разводами и затемнением вдали. */
 	private static EchoLook nightVision() {
 		EchoLook l = new EchoLook();
 		l.echoColor = 0x6CFF7A;
 		l.lineColor = 0xC8FFCF;
 		l.textureAmount = 0.75f;
 		l.fillAmount = 0.3f;
-		l.edgeGlow = 0.4f;
+		l.mottle = 0.3f;
 		l.detailLines = 0.8f;
 		l.distanceFade = 0.6f;
 		l.waveNoise = 0.3f;
@@ -80,14 +77,14 @@ public final class EchoPreset {
 		return l;
 	}
 
-	/** Тепловизор: тёплый оранжевый, яркие края, без вспышки. */
+	/** Тепловизор: тёплый оранжевый, разводы как пятна тепла, без вспышки. */
 	private static EchoLook thermal() {
 		EchoLook l = new EchoLook();
 		l.echoColor = 0xFF8A2B;
 		l.lineColor = 0xFFE08A;
 		l.textureAmount = 0.35f;
 		l.fillAmount = 0.5f;
-		l.edgeGlow = 0.8f;
+		l.mottle = 0.6f;
 		l.detailLines = 0.5f;
 		l.distanceFade = 0.5f;
 		l.waveNoise = 0.5f;

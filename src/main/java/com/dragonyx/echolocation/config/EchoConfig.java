@@ -55,10 +55,8 @@ public final class EchoConfig {
 	public float textureAmount = 1f;
 	/** Яркость ровной заливки поверхности, когда текстура приглушена. */
 	public float fillAmount = 0.5f;
-	/** Яркость контуров по углам и рёбрам предметов (рисуются на самой поверхности). */
-	public float edgeGlow = 0f;
-	/** Толщина контуров, блоков. */
-	public float edgeWidth = 0.04f;
+	/** Мягкие светлые и тёмные пятна по поверхностям (0 — ровно). */
+	public float mottle = 0f;
 	/** Яркость линий по границам деталей текстуры. */
 	public float detailLines = 1f;
 	/** Насколько темнеет эхо вдали от игрока (0 — не темнеет). */
@@ -75,6 +73,8 @@ public final class EchoConfig {
 	public String preset = "echo_vision";
 	/** Свои пресеты игрока. */
 	public List<EchoPreset> userPresets = new ArrayList<>();
+	/** Встроенные пресеты, которые игрок убрал корзиной (их можно вернуть). */
+	public List<String> hiddenPresets = new ArrayList<>();
 	/** Пока открыты настройки, раз в пару секунд беззвучный щелчок — чтобы видеть изменения. */
 	public boolean previewPulses = true;
 	/** Материалы отражают по-разному: камень и металл ярче, шерсть, листва и земля тусклее. */
@@ -156,8 +156,10 @@ public final class EchoConfig {
 	/** Всё по умолчанию, кроме своих пресетов — их сброс не трогает. */
 	public static void reset() {
 		List<EchoPreset> keep = instance.userPresets;
+		List<String> hidden = instance.hiddenPresets;
 		instance = new EchoConfig();
 		instance.userPresets = keep;
+		instance.hiddenPresets = hidden;
 		instance.version = CURRENT_VERSION;
 		save();
 	}
@@ -199,12 +201,12 @@ public final class EchoConfig {
 		lineColor &= 0xFFFFFF;
 		textureAmount = clamp(textureAmount, 0, 1);
 		fillAmount = clamp(fillAmount, 0, 1);
-		edgeGlow = clamp(edgeGlow, 0, 2);
-		edgeWidth = clamp(edgeWidth, 0.01f, 0.2f);
+		mottle = clamp(mottle, 0, 1);
 		detailLines = clamp(detailLines, 0, 2);
 		distanceFade = clamp(distanceFade, 0, 1);
 		if (preset == null) preset = "";
 		if (userPresets == null) userPresets = new ArrayList<>();
+		if (hiddenPresets == null) hiddenPresets = new ArrayList<>();
 		userPresets.removeIf(p -> p == null || p.name == null || p.name.isBlank() || p.look == null);
 		waveNoise = clamp(waveNoise, 0, 1);
 		scaleSteps = clamp(scaleSteps, 0, 2);

@@ -3,7 +3,7 @@ package com.dragonyx.echolocation.config;
 import java.util.Objects;
 
 /**
- * Внешний вид эха — то, что сохраняется в пресет: цвета, заливка, текстура, линии, кольцо фронта.
+ * Внешний вид эха — то, что сохраняется в пресет: цвета, заливка, текстура, пятна, линии, кольцо фронта.
  * Звук, дальность и источники в пресет не входят.
  */
 public final class EchoLook {
@@ -14,8 +14,7 @@ public final class EchoLook {
 	public float echoDuration = 3f;
 	public float textureAmount = 1f;
 	public float fillAmount = 0.5f;
-	public float edgeGlow = 0f;
-	public float edgeWidth = 0.04f;
+	public float mottle = 0f;
 	public float detailLines = 1f;
 	public float distanceFade = 0f;
 	public float waveNoise = 0f;
@@ -32,8 +31,7 @@ public final class EchoLook {
 		l.echoDuration = c.echoDuration;
 		l.textureAmount = c.textureAmount;
 		l.fillAmount = c.fillAmount;
-		l.edgeGlow = c.edgeGlow;
-		l.edgeWidth = c.edgeWidth;
+		l.mottle = c.mottle;
 		l.detailLines = c.detailLines;
 		l.distanceFade = c.distanceFade;
 		l.waveNoise = c.waveNoise;
@@ -51,8 +49,7 @@ public final class EchoLook {
 		c.echoDuration = echoDuration;
 		c.textureAmount = textureAmount;
 		c.fillAmount = fillAmount;
-		c.edgeGlow = edgeGlow;
-		c.edgeWidth = edgeWidth;
+		c.mottle = mottle;
 		c.detailLines = detailLines;
 		c.distanceFade = distanceFade;
 		c.waveNoise = waveNoise;
@@ -66,7 +63,7 @@ public final class EchoLook {
 		if (!(o instanceof EchoLook l)) return false;
 		return colorMode == l.colorMode && echoColor == l.echoColor && lineColor == l.lineColor
 			&& near(brightness, l.brightness) && near(echoDuration, l.echoDuration) && near(textureAmount, l.textureAmount)
-			&& near(fillAmount, l.fillAmount) && near(edgeGlow, l.edgeGlow) && near(edgeWidth, l.edgeWidth)
+			&& near(fillAmount, l.fillAmount) && near(mottle, l.mottle)
 			&& near(detailLines, l.detailLines) && near(distanceFade, l.distanceFade) && near(waveNoise, l.waveNoise)
 			&& wavefrontRing == l.wavefrontRing && near(ringWidth, l.ringWidth) && wavefrontFlash == l.wavefrontFlash;
 	}
