@@ -161,6 +161,8 @@ public final class EchoField {
 		public final long pos;
 		/** 0–5 — грани по Direction.getId(), 6 — форма неполного блока целиком. */
 		public final Echo[] slots = new Echo[7];
+		/** Какие рёбра граней 0–5 — настоящие углы (для контуров на поверхности). */
+		public final byte[] edges = new byte[6];
 		public VoxelShape shape;
 		/** Квадраты модели блока для эхо-зрения: [0–5] по сторонам, [6] — без стороны. */
 		public List<BakedQuad>[] quads;
@@ -201,7 +203,11 @@ public final class EchoField {
 			}
 			int f = r.face[i];
 			be.stale = true; // блок мог измениться с прошлой волны
-			if (f == 6 && r.shape[i] != null) be.shape = r.shape[i];
+			if (f == 6) {
+				if (r.shape[i] != null) be.shape = r.shape[i];
+			} else {
+				be.edges[f] = r.edges[i];
+			}
 			Echo e = be.slots[f];
 			if (e == null) e = be.slots[f] = new Echo();
 			int color = cfg.colorMode == EchoConfig.ColorMode.DISTANCE ? EchoColors.byDistance(d, range) : job.color;

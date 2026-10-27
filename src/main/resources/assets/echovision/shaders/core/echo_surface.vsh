@@ -6,12 +6,21 @@
 in vec3 Position;
 in vec2 UV0;
 in vec4 Color;
+// Не свет: x — u·256 и маска углов грани (биты с 9-го), y — v·256 (см. EchoRenderer.surfaceQuad).
+in ivec2 UV2;
 
 out vec2 texCoord0;
 out vec4 vertexColor;
+out vec2 faceUV;
+flat out int edgeMask;
+out float vertexDistance;
 
 void main() {
-    gl_Position = ProjMat * ModelViewMat * vec4(Position, 1.0);
+    vec4 view = ModelViewMat * vec4(Position, 1.0);
+    gl_Position = ProjMat * view;
     texCoord0 = UV0;
     vertexColor = Color;
+    faceUV = vec2(float(UV2.x & 511), float(UV2.y)) / 256.0;
+    edgeMask = (UV2.x >> 9) & 15;
+    vertexDistance = length(view.xyz);
 }

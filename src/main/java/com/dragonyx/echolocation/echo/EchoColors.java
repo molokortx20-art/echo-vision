@@ -9,7 +9,7 @@ public final class EchoColors {
 
 	public static int forCategory(SoundCategory category) {
 		EchoConfig cfg = EchoConfig.get();
-		if (cfg.colorMode != EchoConfig.ColorMode.CATEGORY) return cfg.baseColor();
+		if (cfg.colorMode != EchoConfig.ColorMode.CATEGORY) return cfg.echoColor;
 		return switch (category) {
 			case PLAYERS -> 0xE8FAFF;
 			case BLOCKS -> 0x6FD4FF;
@@ -19,7 +19,7 @@ public final class EchoColors {
 			case WEATHER -> 0x7088FF;
 			case RECORDS -> 0xFFD36B;
 			case VOICE -> 0xFF9AE0;
-			default -> cfg.baseColor();
+			default -> cfg.echoColor;
 		};
 	}
 
@@ -34,6 +34,6 @@ public final class EchoColors {
 
 	public static int pulse() {
 		EchoConfig cfg = EchoConfig.get();
-		return cfg.colorMode == EchoConfig.ColorMode.CATEGORY ? 0xFFFFFF : cfg.baseColor();
+		return cfg.colorMode == EchoConfig.ColorMode.CATEGORY ? 0xFFFFFF : cfg.echoColor;
 	}
 }

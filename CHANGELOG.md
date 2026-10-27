@@ -1,7 +1,10 @@
 ## Echo Vision 1.0.4
 
-- Only echo vision is left: the Contours, Block grid and Filled faces styles and "Contours over echo vision" are removed — they showed too much through walls. Mobs are no longer outlined with the glowing effect (it was visible through walls); they are always drawn in the echo style. Sound tracing is a bit lighter as a result.
-- Echo color picker: a palette with hue, saturation and brightness plus a HEX field (Settings → Look → Echo color…).
+- New settings screen: a panel on the left while the world stays visible on the right, so every change shows up live (the game is not paused; a silent preview click repeats every couple of seconds, can be turned off). Tabs, sliders with values, switches, icon buttons (click, preview, close).
+- Look presets: Echo vision (default), Sonar, Blueprint, Night vision, Thermal — one click to apply. Save your own look as a preset under any name, overwrite or delete it.
+- New look options: surface color and a separate line/ring color, texture amount vs. flat color fill, corner outlines drawn right on the surfaces (with width), detail lines strength, fade with distance. Creatures and items follow the same look.
+- Only echo vision is left: the Contours, Block grid and Filled faces styles and "Contours over echo vision" are removed — they showed too much through walls. Mobs are no longer outlined with the glowing effect (it was visible through walls); they are always drawn in the echo style.
+- Color picker: palette with hue, saturation and brightness, ready-made swatches and a HEX field.
 - Echo range per sound type: separate sliders for steps and jumps, mining, placing blocks, voice and other sounds (0–200 %).
 - Materials dampen echo: stone, metal and glass reflect brightly, wood a bit less, dirt and sand are muffled, wool, leaves, snow and moss swallow most of the echo. Can be turned off.
 - Optional uneven wave edge: the wavefront breaks into soft irregular tongues instead of a perfect circle (off by default).

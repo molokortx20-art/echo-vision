@@ -11,6 +11,8 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Все настройки мода. Хранятся в config/echovision.json. */
 public final class EchoConfig {
@@ -41,16 +43,26 @@ public final class EchoConfig {
 	/** Сколько блоков пути «стоит» один блок камня. */
 	public float wallAbsorption = 12.0f;
 
-	// Вид
+	// Вид (всё, что входит в пресет, — см. EchoLook)
 	public float echoDuration = 3.0f;
 	public float brightness = 1.0f;
 	public ColorMode colorMode = ColorMode.SINGLE;
-	/** Оттенок (0–359), насыщенность (0 — белый) и яркость цвета эха в режиме «один цвет». */
-	public int hue = 190;
-	public float saturation = 0f;
-	public float colorValue = 1f;
-	/** Материалы отражают по-разному: камень и металл ярче, шерсть, листва и земля тусклее. */
-	public boolean materialEcho = true;
+	/** Цвет поверхностей в режиме «один цвет», 0xRRGGBB. */
+	public int echoColor = 0xFFFFFF;
+	/** Цвет линий: контуров углов, деталей текстуры и кольца фронта. */
+	public int lineColor = 0xFFFFFF;
+	/** Сколько видно саму текстуру блока (1) вместо ровной заливки цветом (0). */
+	public float textureAmount = 1f;
+	/** Яркость ровной заливки поверхности, когда текстура приглушена. */
+	public float fillAmount = 0.5f;
+	/** Яркость контуров по углам и рёбрам предметов (рисуются на самой поверхности). */
+	public float edgeGlow = 0f;
+	/** Толщина контуров, блоков. */
+	public float edgeWidth = 0.04f;
+	/** Яркость линий по границам деталей текстуры. */
+	public float detailLines = 1f;
+	/** Насколько темнеет эхо вдали от игрока (0 — не темнеет). */
+	public float distanceFade = 0f;
 	/** Неровность края волны, 0 — ровный. */
 	public float waveNoise = 0f;
 	/** Светящееся кольцо фронта волны, бегущее по поверхностям. */
@@ -59,6 +71,14 @@ public final class EchoConfig {
 	public float ringWidth = 0.4f;
 	/** Яркая вспышка в момент, когда фронт волны касается поверхности. */
 	public boolean wavefrontFlash = true;
+	/** Имя последнего выбранного пресета (для подсказки на экране настроек). */
+	public String preset = "echo_vision";
+	/** Свои пресеты игрока. */
+	public List<EchoPreset> userPresets = new ArrayList<>();
+	/** Пока открыты настройки, раз в пару секунд беззвучный щелчок — чтобы видеть изменения. */
+	public boolean previewPulses = true;
+	/** Материалы отражают по-разному: камень и металл ярче, шерсть, листва и земля тусклее. */
+	public boolean materialEcho = true;
 	public boolean showEntities = true;
 	public boolean showSources = true;
 	public int maxBlocks = 30000;
@@ -96,11 +116,10 @@ public final class EchoConfig {
 
 	/** Версия формата настроек: при обновлении мода старые значения переносятся на новые. */
 	public int version = 0;
-	private static final int CURRENT_VERSION = 3;
-
-	public int baseColor() {
-		return java.awt.Color.HSBtoRGB(hue / 360f, saturation, colorValue) & 0xFFFFFF;
-	}
+	private static final int CURRENT_VERSION = 4;
+	/** Цвет до версии 4 (оттенок и насыщенность) — только для переноса в echoColor, потом null и не сохраняется. */
+	private Integer hue;
+	private Float saturation;
 
 	public static EchoConfig get() {
 		return instance;
@@ -134,8 +153,11 @@ public final class EchoConfig {
 		}
 	}
 
+	/** Всё по умолчанию, кроме своих пресетов — их сброс не трогает. */
 	public static void reset() {
+		List<EchoPreset> keep = instance.userPresets;
 		instance = new EchoConfig();
+		instance.userPresets = keep;
 		instance.version = CURRENT_VERSION;
 		save();
 	}
@@ -152,6 +174,12 @@ public final class EchoConfig {
 			// v3: звук идёт только по воздуху (туннели, проёмы).
 			wallPenetration = false;
 		}
+		if (version < 4 && hue != null) {
+			// v4: цвет хранится готовым RGB, у контуров свой цвет.
+			echoColor = java.awt.Color.HSBtoRGB(hue / 360f, saturation == null ? 0f : saturation, 1f) & 0xFFFFFF;
+		}
+		hue = null;
+		saturation = null;
 		version = CURRENT_VERSION;
 	}
 
@@ -167,9 +195,17 @@ public final class EchoConfig {
 		maxBlocks = Math.max(1000, Math.min(200000, maxBlocks));
 		pulseRange = clamp(pulseRange, 4, 96);
 		pulseCooldown = clamp(pulseCooldown, 0, 10);
-		hue = Math.floorMod(hue, 360);
-		saturation = clamp(saturation, 0, 1);
-		colorValue = clamp(colorValue, 0.15f, 1);
+		echoColor &= 0xFFFFFF;
+		lineColor &= 0xFFFFFF;
+		textureAmount = clamp(textureAmount, 0, 1);
+		fillAmount = clamp(fillAmount, 0, 1);
+		edgeGlow = clamp(edgeGlow, 0, 2);
+		edgeWidth = clamp(edgeWidth, 0.01f, 0.2f);
+		detailLines = clamp(detailLines, 0, 2);
+		distanceFade = clamp(distanceFade, 0, 1);
+		if (preset == null) preset = "";
+		if (userPresets == null) userPresets = new ArrayList<>();
+		userPresets.removeIf(p -> p == null || p.name == null || p.name.isBlank() || p.look == null);
 		waveNoise = clamp(waveNoise, 0, 1);
 		scaleSteps = clamp(scaleSteps, 0, 2);
 		scaleMining = clamp(scaleMining, 0, 2);

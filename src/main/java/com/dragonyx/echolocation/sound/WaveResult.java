@@ -11,6 +11,8 @@ public final class WaveResult {
 	public int size;
 	public long[] pos = new long[256];
 	public byte[] face = new byte[256];
+	/** Какие рёбра грани — настоящие углы (биты −U, +U, −V, +V, см. SoundPropagator.edgeMask). */
+	public byte[] edges = new byte[256];
 	public float[] dist = new float[256];
 	public VoxelShape[] shape = new VoxelShape[256];
 	/**
@@ -30,12 +32,13 @@ public final class WaveResult {
 		air.defaultReturnValue(-1f);
 	}
 
-	void addBlock(long p, byte f, float d, VoxelShape s, int air) {
+	void addBlock(long p, byte f, float d, VoxelShape s, byte edgeMask, int air) {
 		if (size >= limit) return;
 		if (size == pos.length) {
 			int n = size * 2;
 			pos = Arrays.copyOf(pos, n);
 			face = Arrays.copyOf(face, n);
+			edges = Arrays.copyOf(edges, n);
 			dist = Arrays.copyOf(dist, n);
 			shape = Arrays.copyOf(shape, n);
 			corners = Arrays.copyOf(corners, n * 4);
@@ -43,6 +46,7 @@ public final class WaveResult {
 		}
 		pos[size] = p;
 		face[size] = f;
+		edges[size] = edgeMask;
 		dist[size] = d;
 		shape[size] = s;
 		airIdx[size] = air;

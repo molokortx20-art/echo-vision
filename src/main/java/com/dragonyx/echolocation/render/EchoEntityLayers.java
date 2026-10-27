@@ -106,6 +106,7 @@ public final class EchoEntityLayers {
 		if (echo == null) {
 			echo = layers[step] = RenderLayer.of("echovision_entity_" + step, RenderSetup.builder(PIPELINES[step])
 				.texture("Sampler0", texture)
+				.textureTransform(EchoLookUniform.TRANSFORM)
 				// Светящиеся сущности (эффект свечения) рисуются ещё и обводкой: без своей обводки
 				// слой ронял игру («Can't render an outline for this rendertype!»).
 				.outlineMode(RenderSetup.OutlineMode.AFFECTS_OUTLINE)

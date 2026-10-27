@@ -68,7 +68,8 @@ public final class EchoRenderer {
 			.withVertexShader(Identifier.of(EchoMod.MOD_ID, "core/echo_surface"))
 			.withFragmentShader(Identifier.of(EchoMod.MOD_ID, "core/echo_surface"))
 			.withSampler("Sampler0")
-			.withVertexFormat(VertexFormats.POSITION_TEXTURE_COLOR, VertexFormat.DrawMode.QUADS)
+			// UV2 — не свет: координаты точки на грани и маска углов для контуров (см. surfaceQuad).
+			.withVertexFormat(VertexFormats.POSITION_TEXTURE_COLOR_LIGHT, VertexFormat.DrawMode.QUADS)
 			.withBlend(BlendFunction.ADDITIVE)
 			.withCull(false)
 			.withDepthWrite(false)
@@ -77,6 +78,7 @@ public final class EchoRenderer {
 	private static final RenderLayer SURFACE_LAYER = RenderLayer.of("echolocation_surface",
 		RenderSetup.builder(SURFACE_PIPELINE)
 			.texture("Sampler0", SpriteAtlasTexture.BLOCK_ATLAS_TEXTURE, RenderLayers.BLOCK_SAMPLER)
+			.textureTransform(EchoLookUniform.TRANSFORM)
 			.expectedBufferSize(1 << 20)
 			.build());
 	/** Затенение граней как в ванилле: низ, верх, север, юг, запад, восток. */
@@ -114,6 +116,12 @@ public final class EchoRenderer {
 	private static boolean flash;
 	/** Отражающая способность материала текущего блока (1 — без учёта материалов). */
 	private static float matGain = 1f;
+	/**
+	 * Режим «один цвет»: поверхности красятся текущим цветом из настроек, а не цветом, с которым родилась
+	 * волна, — так смена цвета в настройках видна сразу. Кольцо фронта и значки — цветом линий.
+	 */
+	private static boolean single;
+	private static int singleColor, lineColor;
 	/** Неровность края волны, блоков (0 — ровный круг). */
 	private static float noiseAmp;
 	/** Ширина кольца фронта на текущей грани, в единицах s. */
@@ -176,6 +184,9 @@ public final class EchoRenderer {
 		flash = cfg.wavefrontFlash;
 		matGain = 1f;
 		noiseAmp = cfg.waveNoise * 1.5f;
+		single = cfg.colorMode == EchoConfig.ColorMode.SINGLE;
+		singleColor = cfg.echoColor;
+		lineColor = cfg.lineColor;
 
 		mat =ctx.matrices().peek().getPositionMatrix();
 		vc = immediate.getBuffer(LAYER);
@@ -200,17 +211,17 @@ public final class EchoRenderer {
 				EchoField.Echo e = be.slots[f];
 				// Грань, повёрнутая от камеры, не видна — её не рисуем.
 				if (e == null || !lit(e) || !facesCamera(f, rx, ry, rz)) continue;
-				int color = e.colorAt(now, dur);
+				int color = single ? singleColor : e.colorAt(now, dur);
 				setFace(f, rx, ry, rz);
 				beginFace(f, rx, ry, rz);
 				surfaceFace(world, be, f, e, rx, ry, rz, color);
-				if (cfg.wavefrontRing) ring(e, color);
+				if (cfg.wavefrontRing) ring(e, single ? lineColor : color);
 			}
 
 			EchoField.Echo whole = be.slots[6];
 			if (whole != null && be.shape != null && lit(whole)) {
 				beginFace(6, rx, ry, rz);
-				surfaceWhole(world, be, whole, rx, ry, rz, whole.colorAt(now, dur));
+				surfaceWhole(world, be, whole, rx, ry, rz, single ? singleColor : whole.colorAt(now, dur));
 			}
 		}
 
@@ -222,7 +233,7 @@ public final class EchoRenderer {
 			double dx = s.x() - camX, dy = s.y() - camY, dz = s.z() - camZ;
 			if (dx * dx + dy * dy + dz * dz < 2.5 * 2.5) continue;
 			sourceRing((float) (s.x() - camX), (float) (s.y() - camY), (float) (s.z() - camZ),
-				(float) (0.15 + 0.85 * t), s.color(), (float) (1 - t) * (float) (1 - t) * s.intensity() * brightness);
+				(float) (0.15 + 0.85 * t), single ? lineColor : s.color(), (float) (1 - t) * (float) (1 - t) * s.intensity() * brightness);
 		}
 
 		updateReach(farthest);
@@ -385,7 +396,8 @@ public final class EchoRenderer {
 			int a = (int) (Math.min(1f, lv[j] * 0.5f) * 255);
 			surface.vertex(mat, px[j], py[j], pz[j])
 				.texture(s.getFrameU(us[j]), s.getFrameV(1 - vs[j]))
-				.color(a << 24 | rgb);
+				.color(a << 24 | rgb)
+				.light(0, 0);
 		}
 	}
 
@@ -393,10 +405,11 @@ public final class EchoRenderer {
 	private static void surfaceFace(ClientWorld world, EchoField.BlockEcho be, int f, EchoField.Echo e,
 									float x, float y, float z, int color) {
 		List<BakedQuad>[] quads = quadsOf(world, be);
-		for (BakedQuad q : quads[f]) surfaceQuad(q, e, x, y, z, color);
+		int mask = be.edges[f];
+		for (BakedQuad q : quads[f]) surfaceQuad(q, e, x, y, z, color, f, mask);
 		// У некоторых моделей грани лежат в общем списке без стороны.
 		if (quads[f].isEmpty()) {
-			for (BakedQuad q : quads[6]) if (q.face().ordinal() == f) surfaceQuad(q, e, x, y, z, color);
+			for (BakedQuad q : quads[6]) if (q.face().ordinal() == f) surfaceQuad(q, e, x, y, z, color, f, mask);
 		}
 	}
 
@@ -408,11 +421,24 @@ public final class EchoRenderer {
 			return;
 		}
 		for (List<BakedQuad> list : quads) {
-			for (BakedQuad q : list) surfaceQuad(q, e, x, y, z, color);
+			for (BakedQuad q : list) surfaceQuad(q, e, x, y, z, color, 6, 0);
 		}
 	}
 
-	private static void surfaceQuad(BakedQuad q, EchoField.Echo e, float x, float y, float z, int color) {
+	/**
+	 * Координаты точки p (внутри блока, 0–1) на грани f — как у углов рендера: грани по Y — (X, Z),
+	 * по Z — (X, Y), по X — (Z, Y); маска углов из SoundPropagator идёт в том же порядке (−U, +U, −V, +V).
+	 * Упаковано в UV2: u·256 и маска в старших битах, v·256. У неполных блоков (f = 6) контуров нет.
+	 */
+	private static int packU(int f, float u, int mask) {
+		return f == 6 ? 0 : Math.round(clamp01(u) * 256) | mask << 9;
+	}
+
+	private static int packV(int f, float v) {
+		return f == 6 ? 0 : Math.round(clamp01(v) * 256);
+	}
+
+	private static void surfaceQuad(BakedQuad q, EchoField.Echo e, float x, float y, float z, int color, int f, int mask) {
 		float[] lv = LV, px = PX, py = PY, pz = PZ;
 		boolean any = false;
 		for (int j = 0; j < 4; j++) {
@@ -431,9 +457,12 @@ public final class EchoRenderer {
 		for (int j = 0; j < 4; j++) {
 			long uv = q.getTexcoords(j);
 			int a = (int) (Math.min(1f, lv[j] * 0.5f) * 255);
+			float lx = px[j] - x, ly = py[j] - y, lz = pz[j] - z;
+			float u = f < 4 ? lx : lz, v = f < 2 ? lz : ly;
 			surface.vertex(mat, px[j], py[j], pz[j])
 				.texture(Vector2f.getX(uv), Vector2f.getY(uv))
-				.color(a << 24 | rgb);
+				.color(a << 24 | rgb)
+				.light(packU(f, u, mask), packV(f, v));
 		}
 	}
 
@@ -635,7 +664,7 @@ public final class EchoRenderer {
 			float front = (float) ((now - e.start[k]) * speed);
 			float strength = EchoField.falloff(front, e.range[k]) * e.base[k] * brightness * matGain * 1.3f;
 			if (strength < 0.003f) continue;
-			int c = k == 0 ? color : e.color[1];
+			int c = k == 0 || single ? color : e.color[1];
 
 			int w = n + 1;
 			for (int j = 0; j <= n; j++) {

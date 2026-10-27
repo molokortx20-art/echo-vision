@@ -130,6 +130,15 @@ public final class EchoEngine {
 		return true;
 	}
 
+	/** Беззвучный щелчок для предпросмотра на экране настроек: без перезарядки. */
+	public void previewPulse() {
+		EchoConfig cfg = EchoConfig.get();
+		MinecraftClient client = MinecraftClient.getInstance();
+		if (!cfg.echoEnabled || client.world == null || client.player == null) return;
+		Vec3d eye = client.player.getEyePos();
+		submit(client.world, eye.x, eye.y, eye.z, cfg.pulseRange, 1f, EchoColors.pulse(), EchoClock.now());
+	}
+
 	private void submit(ClientWorld world, double x, double y, double z, float range, float intensity, int color, double now) {
 		EchoConfig cfg = EchoConfig.get();
 		SoundJob job = new SoundJob(x, y, z, range, intensity, color, now,

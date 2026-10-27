@@ -4,7 +4,9 @@ import com.dragonyx.echolocation.config.EchoConfig;
 import com.dragonyx.echolocation.echo.EchoEngine;
 import com.dragonyx.echolocation.echo.EchoField;
 import com.dragonyx.echolocation.echo.VoiceEchoes;
+import com.dragonyx.echolocation.config.EchoPreset;
 import com.dragonyx.echolocation.screen.EchoColorScreen;
+import net.minecraft.text.Text;
 import com.dragonyx.echolocation.screen.EchoConfigScreen;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.loader.api.FabricLoader;
@@ -191,8 +193,10 @@ public final class EchoClientGameTest implements FabricClientGameTest {
 			sp.getServer().runCommand("execute as @p at @s run fill ~-1 ~-1 ~-2 ~1 ~-1 ~-4 minecraft:white_wool");
 			context.runOnClient(client -> EchoConfig.get().waveNoise = 1f);
 			context.waitTicks(80);
+			context.runOnClient(client -> EchoEngine.INSTANCE.reset());
 			context.runOnClient(client -> EchoEngine.INSTANCE.pulse());
-			context.waitTicks(4);
+			waitForEcho(context, "wave noise");
+			context.waitTicks(3);
 			shot(context, "17_wave_noise");
 			context.waitTicks(4);
 			shot(context, "17b_wave_noise_later");
@@ -206,27 +210,62 @@ public final class EchoClientGameTest implements FabricClientGameTest {
 			});
 			context.waitTicks(25);
 			context.runOnClient(client -> EchoEngine.INSTANCE.pulse());
-			context.waitTicks(8);
+			waitForEcho(context, "distance colors");
+			context.waitTicks(6);
 			shot(context, "07_distance_colors");
 
+			// Встроенные пресеты вида: по кадру на каждый, у «Сонара» — ещё кадр позже.
+			for (EchoPreset preset : EchoPreset.BUILT_IN) {
+				context.runOnClient(client -> {
+					EchoConfig.reset();
+					preset.look.applyTo(EchoConfig.get());
+					EchoEngine.INSTANCE.reset();
+				});
+				context.waitTicks(20);
+				context.runOnClient(client -> EchoEngine.INSTANCE.previewPulse());
+				waitForEcho(context, preset.name);
+				context.waitTicks(6);
+				shot(context, "18_preset_" + preset.name);
+				if (preset.name.equals("sonar")) {
+					context.waitTicks(16);
+					shot(context, "18_preset_sonar_late");
+				}
+			}
+
+			// Экран настроек поверх мира: панель слева, эхо справа (автощелчок предпросмотра).
+			EchoConfigScreen.openPage("look");
+			context.setScreen(() -> new EchoConfigScreen(null));
+			context.waitTicks(50);
+			shot(context, "08_config_look");
+			double px = context.computeOnClient(client -> client.getWindow().getWidth() * 0.12);
+			double py = context.computeOnClient(client -> client.getWindow().getHeight() / 2.0);
+			context.getInput().setCursorPos(px, py);
+			context.waitTicks(2);
+			context.getInput().scroll(-12);
+			context.waitTicks(5);
+			shot(context, "08a_config_look_scrolled");
+			EchoConfigScreen.openPage("sound");
 			context.setScreen(() -> new EchoConfigScreen(null));
 			context.waitTicks(5);
-			shot(context, "08_config_screen");
-			double cx = context.computeOnClient(client -> client.getWindow().getWidth() / 2.0);
-			double cy = context.computeOnClient(client -> client.getWindow().getHeight() / 2.0);
-			context.getInput().setCursorPos(cx, cy);
-			context.getInput().scroll(-14);
-			context.waitTicks(5);
-			shot(context, "08a_config_kinds_look");
-			context.getInput().scroll(-6);
-			context.waitTicks(5);
-			shot(context, "08a2_config_look");
-			context.setScreen(() -> new EchoColorScreen(null));
-			context.waitTicks(5);
+			shot(context, "08c_config_sound");
+			context.setScreen(() -> new EchoColorScreen(null, Text.literal("Цвет поверхностей"),
+				() -> EchoConfig.get().echoColor, v -> EchoConfig.get().echoColor = v, 0xFFFFFF, true));
+			context.waitTicks(30);
 			shot(context, "08b_color_screen");
 			context.setScreen(() -> null);
+			EchoConfigScreen.openPage("look");
 			context.runOnClient(client -> EchoConfig.reset());
 		}
+	}
+
+	/** Ждёт, пока фоновый поток досчитает волну и она появится в поле (не дольше 100 тиков). */
+	private static void waitForEcho(ClientGameTestContext context, String what) {
+		int ticks = 0;
+		while (ticks < 100 && context.computeOnClient(client -> EchoField.INSTANCE.blocks.isEmpty())) {
+			context.waitTick();
+			ticks++;
+		}
+		LOG.info("Echo for {} appeared after {} ticks", what, ticks);
 	}
 
 	private static void shot(ClientGameTestContext context, String name) {

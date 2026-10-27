@@ -100,7 +100,7 @@ public final class SoundPropagator {
 		dist[originIdx] = 0;
 		buckets[0].add(originIdx);
 		if (originKind == SOLID || originKind == PARTIAL) {
-			out.addBlock(BlockPos.asLong(ox, oy, oz), WHOLE, 0f, shapeAt(world, mpos.set(ox, oy, oz)), originIdx);
+			out.addBlock(BlockPos.asLong(ox, oy, oz), WHOLE, 0f, shapeAt(world, mpos.set(ox, oy, oz)), (byte) 0, originIdx);
 		}
 
 		int visited = 0;
@@ -123,7 +123,7 @@ public final class SoundPropagator {
 
 				if (k == AIR || k == PARTIAL) {
 					if (k == PARTIAL && !isOrigin) {
-						out.addBlock(BlockPos.asLong(wx, wy, wz), WHOLE, d / 10f, shapeAt(world, mpos.set(wx, wy, wz)), idx);
+						out.addBlock(BlockPos.asLong(wx, wy, wz), WHOLE, d / 10f, shapeAt(world, mpos.set(wx, wy, wz)), (byte) 0, idx);
 					}
 					out.addAir(BlockPos.asLong(wx, wy, wz), d / 10f);
 				}
@@ -146,7 +146,8 @@ public final class SoundPropagator {
 						if (!fromSolid) {
 							// Поверхность стены, к которой подошёл звук.
 							int faceId = faceTowards(-st[0], -st[1], -st[2]);
-							out.addBlock(BlockPos.asLong(wx + st[0], wy + st[1], wz + st[2]), (byte) faceId, d / 10f + 0.5f, null, idx);
+							byte edges = edgeMask(world, chunks, mpos, ox, oy, oz, half, side, faceId, nx, ny, nz, lx, ly, lz, gen, wall10);
+							out.addBlock(BlockPos.asLong(wx + st[0], wy + st[1], wz + st[2]), (byte) faceId, d / 10f + 0.5f, null, edges, idx);
 						}
 						if (!penetrate) continue;
 						nd = d + cross[nIdx];
@@ -208,6 +209,52 @@ public final class SoundPropagator {
 				out.corners[i * 4 + c] = best + CELL_TO_CORNER;
 			}
 		}
+	}
+
+	/**
+	 * Касательные направления рёбер грани в порядке битов маски: (−U, +U, −V, +V), где U и V — оси
+	 * грани в том же порядке, что у углов рендера: грани по Y — X и Z, по Z — X и Y, по X — Z и Y.
+	 */
+	private static final int[][][] TANGENTS = new int[6][][];
+
+	static {
+		int[][] y = {{-1, 0, 0}, {1, 0, 0}, {0, 0, -1}, {0, 0, 1}};
+		int[][] z = {{-1, 0, 0}, {1, 0, 0}, {0, -1, 0}, {0, 1, 0}};
+		int[][] x = {{0, 0, -1}, {0, 0, 1}, {0, -1, 0}, {0, 1, 0}};
+		TANGENTS[0] = y;
+		TANGENTS[1] = y;
+		TANGENTS[2] = z;
+		TANGENTS[3] = z;
+		TANGENTS[4] = x;
+		TANGENTS[5] = x;
+	}
+
+	/**
+	 * Какие из четырёх рёбер грани — настоящий угол (контур), а какие лежат внутри ровной поверхности.
+	 * Ребро внутреннее, если сосед по касательной тоже твёрдый и его такая же грань открыта.
+	 * Контур рисуется на самой грани, поэтому у угла его рисуют обе грани — каждая со своей стороны.
+	 */
+	private byte edgeMask(World world, ChunkLookup chunks, BlockPos.Mutable mpos, int ox, int oy, int oz, int half, int side,
+						  int faceId, int sx, int sy, int sz, int ax, int ay, int az, int gen, int wall10) {
+		int[][] tangents = TANGENTS[faceId];
+		byte mask = 0;
+		for (int i = 0; i < 4; i++) {
+			int[] t = tangents[i];
+			int nx = sx + t[0], ny = sy + t[1], nz = sz + t[2];
+			int px = ax + t[0], py = ay + t[1], pz = az + t[2];
+			boolean internal = false;
+			if (inside(nx, ny, nz, side) && inside(px, py, pz, side)) {
+				byte n = kindAt(world, chunks, mpos, ox, oy, oz, half, nx, ny, nz, index(nx, ny, nz, side), gen, wall10);
+				byte p = kindAt(world, chunks, mpos, ox, oy, oz, half, px, py, pz, index(px, py, pz, side), gen, wall10);
+				internal = n == SOLID && p != SOLID && p != BARRIER;
+			}
+			if (!internal) mask |= (byte) (1 << i);
+		}
+		return mask;
+	}
+
+	private static boolean inside(int x, int y, int z, int side) {
+		return x > 0 && y > 0 && z > 0 && x < side - 1 && y < side - 1 && z < side - 1;
 	}
 
 	private boolean diagonalOpen(World world, ChunkLookup chunks, BlockPos.Mutable mpos, int ox, int oy, int oz, int half, int side,
